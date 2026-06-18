@@ -1,5 +1,5 @@
 -- Product Purchase Faker
--- Made by esore 2026 (improved)
+-- Made by esore 2026 (improved with listener for real purchase IDs)
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -28,7 +28,7 @@ UIStroke.Parent = mainbg
 local CloseBtn = Instance.new("ImageButton")
 CloseBtn.Size = UDim2.new(0, 24, 0, 24)
 CloseBtn.Position = UDim2.new(1, -30, 0, 6)
-CloseBtn.Image = "rbxassetid://10747358723" -- иконка крестика
+CloseBtn.Image = "rbxassetid://10747358723"
 CloseBtn.BackgroundTransparency = 1
 CloseBtn.Parent = mainbg
 CloseBtn.MouseButton1Click:Connect(function()
@@ -333,7 +333,7 @@ Warn.TextSize = 14
 Warn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 Warn.Parent = actionTabFrame
 
--- Новое поле для количества повторений (Bulk)
+-- Поле для количества повторений (Bulk)
 local CountInput = Instance.new("TextBox")
 CountInput.Size = UDim2.new(0, 60, 0, 20)
 CountInput.Position = UDim2.new(0.75, 0, 0.54, 0)
@@ -629,7 +629,7 @@ local function fireSignal(signalFunc, ...)
 	end
 end
 
--- === ОБНОВЛЁННАЯ ФУНКЦИЯ addLog ===
+-- === ФУНКЦИЯ addLog (без изменений) ===
 function addLog(pName, purchasedId, wasPurchased, price)
 	local Response = Instance.new("Frame")
 	Response.Active = true
@@ -675,7 +675,7 @@ function addLog(pName, purchasedId, wasPurchased, price)
 	ProductID.Name = "ProductID"
 	ProductID.TextColor3 = Color3.fromRGB(255, 201, 37)
 	ProductID.BorderColor3 = Color3.fromRGB(0, 0, 0)
-	ProductID.Text = string.format("ID: %d | Price: %d", purchasedId, price or 0)
+	ProductID.Text = string.format("ID: %d | Price: %d | Success: %s", purchasedId, price or 0, tostring(wasPurchased))
 	ProductID.Size = UDim2.new(0, 287, 0, 15)
 	ProductID.Position = UDim2.new(0.3402802050113678, 0, 0.6875, 0)
 	ProductID.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -787,7 +787,7 @@ function addLog(pName, purchasedId, wasPurchased, price)
 	end)
 end
 
--- === ОБРАБОТЧИКИ КНОПОК С УЛУЧШЕНИЯМИ ===
+-- === ОБРАБОТЧИКИ КНОПОК (без вызова addLog, только отправка сигналов) ===
 local function handleSignal(signalFunc, signalName, isBulk)
 	local inputText = ProductIDInput.Text
 	if inputText == "" then
@@ -808,15 +808,12 @@ local function handleSignal(signalFunc, signalName, isBulk)
 
 	for i = 1, count do
 		for _, productID in ipairs(ids) do
-			-- Случайная задержка 0.1–0.5 сек для реалистичности
-			task.wait(math.random(10, 50) / 100)
+			task.wait(math.random(10, 50) / 100) -- случайная задержка
 
-			-- Получаем имя продукта для уведомления
 			local productName, price = getProductInfo(productID)
 			local playerId = LocalPlayer.UserId
 			local player = LocalPlayer
 
-			-- Вызываем сигнал
 			if signalName == "Product" then
 				fireSignal(signalFunc, playerId, productID, true)
 			elseif signalName == "Gamepass" then
@@ -829,9 +826,7 @@ local function handleSignal(signalFunc, signalName, isBulk)
 
 			print(string.format("Falsely bought %s (ID: %d)", productName, productID))
 			sendNotification("Purchase Faked", string.format("Faked %s (ID: %d)", productName, productID), 2)
-
-			-- Добавляем в лог (только если это не bulk или последний, но можно добавлять каждый)
-			addLog(productName, productID, true, price)
+			-- addLog не вызываем здесь, полагаемся на обработчик события
 		end
 	end
 end
@@ -862,7 +857,7 @@ BulkBtn.MouseButton1Click:Connect(function()
 			MarketplaceService:SignalPromptBulkPurchaseFinished(uid, pid, success)
 		end,
 		"Bulk",
-		true -- используем поле CountInput
+		true
 	)
 end)
 
@@ -876,14 +871,12 @@ PurchaseBtn.MouseButton1Click:Connect(function()
 	)
 end)
 
--- === ПРОСЛУШИВАНИЕ СОБЫТИЙ ===
+-- === ОСНОВНОЙ ЛИСТЕНЕР — ЗДЕСЬ ЛОГИРУЮТСЯ ВСЕ ПОКУПКИ (реальные и фейковые) ===
 MarketplaceService.PromptProductPurchaseFinished:Connect(function(player, purchasedId, wasPurchased)
 	print("Hook triggered for product:", purchasedId)
-	-- addLog вызывается внутри handleSignal, но если хотим дублировать, можно оставить
-	-- Но чтобы не дублировать, уберем вызов addLog отсюда, т.к. мы уже добавляем в handleSignal.
-	-- Однако оригинал оставлял здесь вызов, но он будет дублироваться. Оставим только для совместимости,
-	-- но можно закомментировать, чтобы не было дублей.
-	-- addLog(player.Name, purchasedId, wasPurchased)
+	-- Получаем имя и цену для красивого отображения
+	local productName, price = getProductInfo(purchasedId)
+	addLog(player.Name, purchasedId, wasPurchased, price)
 end)
 
-print("Product Faker loaded. Improvements: delays, product info, notifications, multiple IDs, bulk count.")
+print("Product Faker loaded. Listener captures any purchase completion (real or fake).")
