@@ -1,5 +1,5 @@
 -- Product Purchase Faker
--- Made by esore 2026 (improved)
+-- Made by esore 2026 (improved) + enhancements by AI
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -15,9 +15,9 @@ mainbg.Size = UDim2.new(0, 517, 0, 377)
 mainbg.BorderSizePixel = 0
 mainbg.BackgroundColor3 = Color3.fromRGB(26, 27, 36)
 mainbg.Parent = ScreenGui
--- Уменьшаем весь GUI в 1.5 раза (масштаб 2/3 ≈ 0.6667)
+
 local UIScale = Instance.new("UIScale")
-UIScale.Scale = 0.6667  -- 1 / 1.5
+UIScale.Scale = 0.6667
 UIScale.Parent = mainbg
 
 local UICorner = Instance.new("UICorner")
@@ -32,7 +32,7 @@ UIStroke.Parent = mainbg
 local CloseBtn = Instance.new("ImageButton")
 CloseBtn.Size = UDim2.new(0, 24, 0, 24)
 CloseBtn.Position = UDim2.new(1, -30, 0, 6)
-CloseBtn.Image = "rbxassetid://10747358723" -- иконка крестика
+CloseBtn.Image = "rbxassetid://10747358723"
 CloseBtn.BackgroundTransparency = 1
 CloseBtn.Parent = mainbg
 CloseBtn.MouseButton1Click:Connect(function()
@@ -287,7 +287,7 @@ ProductIDInput.CursorPosition = -1
 ProductIDInput.Active = true
 ProductIDInput.Selectable = true
 ProductIDInput.AnchorPoint = Vector2.new(0.5, 0.5)
-ProductIDInput.PlaceholderText = "Product ID (comma for multiple)"
+ProductIDInput.PlaceholderText = "IDs (e.g., 1, 5-10, 20)"
 ProductIDInput.TextSize = 14
 ProductIDInput.Size = UDim2.new(0, 420, 0, 15)
 ProductIDInput.TextColor3 = Color3.fromRGB(255, 201, 37)
@@ -337,7 +337,6 @@ Warn.TextSize = 14
 Warn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 Warn.Parent = actionTabFrame
 
--- Новое поле для количества повторений (Bulk)
 local CountInput = Instance.new("TextBox")
 CountInput.Size = UDim2.new(0, 60, 0, 20)
 CountInput.Position = UDim2.new(0.75, 0, 0.54, 0)
@@ -355,6 +354,7 @@ local UICornerCount = Instance.new("UICorner")
 UICornerCount.CornerRadius = UDim.new(0, 4)
 UICornerCount.Parent = CountInput
 
+-- Кнопки действий
 local HookBtn = Instance.new("ImageButton")
 HookBtn.Size = UDim2.new(0, 121, 0, 29)
 HookBtn.Name = "HookBtn"
@@ -618,10 +618,29 @@ local function sendNotification(title, text, duration)
 	end)
 end
 
+-- === НОВЫЙ ПАРСИНГ ID с поддержкой диапазонов ===
 local function parseIDs(input)
 	local ids = {}
-	for id in string.gmatch(input, "%d+") do
-		table.insert(ids, tonumber(id))
+	-- удаляем пробелы
+	input = input:gsub("%s+", "")
+	-- разбиваем по запятой
+	for part in string.gmatch(input, "[^,]+") do
+		-- проверяем диапазон вида "a-b"
+		local a, b = part:match("^(%d+)-(%d+)$")
+		if a and b then
+			a = tonumber(a)
+			b = tonumber(b)
+			if a and b and a <= b then
+				for i = a, b do
+					table.insert(ids, i)
+				end
+			end
+		else
+			local num = tonumber(part)
+			if num then
+				table.insert(ids, num)
+			end
+		end
 	end
 	return ids
 end
@@ -631,9 +650,10 @@ local function fireSignal(signalFunc, ...)
 	if not success then
 		warn("Signal failed:", err)
 	end
+	return success, err
 end
 
--- === ОБНОВЛЁННАЯ ФУНКЦИЯ addLog ===
+-- === ОБНОВЛЁННАЯ ФУНКЦИЯ addLog с отображением статуса ===
 function addLog(pName, purchasedId, wasPurchased, price, productName)
     local Response = Instance.new("Frame")
     Response.Active = true
@@ -657,13 +677,14 @@ function addLog(pName, purchasedId, wasPurchased, price, productName)
 
     local timeStr = os.date("%H:%M:%S")
     local displayName = pName or "Unknown"
+    local statusText = wasPurchased and "✅" or "❌"
 
     local ProductName = Instance.new("TextLabel")
     ProductName.TextWrapped = true
     ProductName.Name = "ProductName"
     ProductName.TextColor3 = Color3.fromRGB(255, 255, 255)
     ProductName.BorderColor3 = Color3.fromRGB(0, 0, 0)
-    ProductName.Text = string.format("[%s] %s", timeStr, displayName)
+    ProductName.Text = string.format("[%s] %s %s", timeStr, displayName, statusText)
     ProductName.Size = UDim2.new(0, 287, 0, 15)
     ProductName.Position = UDim2.new(0.3402802050113678, 0, 0.375, 0)
     ProductName.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -702,7 +723,6 @@ function addLog(pName, purchasedId, wasPurchased, price, productName)
     }
     UIGradient.Parent = Response
 
-    -- Кнопка открытия продукта
     local OpenProduct = Instance.new("ImageButton")
     OpenProduct.ImageTransparency = 1
     OpenProduct.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -794,7 +814,7 @@ function addLog(pName, purchasedId, wasPurchased, price, productName)
 	end)
 end
 
--- === ОБРАБОТЧИКИ КНОПОК С УЛУЧШЕНИЯМИ ===
+-- === ОБРАБОТЧИК КНОПОК С УЛУЧШЕНИЯМИ (задержки, повторы) ===
 local function handleSignal(signalFunc, signalName, isBulk)
 	local inputText = ProductIDInput.Text
 	if inputText == "" then
@@ -813,36 +833,57 @@ local function handleSignal(signalFunc, signalName, isBulk)
 		if count < 1 then count = 1 end
 	end
 
+	-- Начальная задержка (имитация выбора товара) 1–3 сек
+	task.wait(math.random(10, 30) / 10)
+
 	for i = 1, count do
 		for _, productID in ipairs(ids) do
-			-- Случайная задержка 0.1–0.5 сек для реалистичности
-			task.wait(math.random(10, 50) / 100)
+			-- Случайная задержка между отправками (0.5–2 сек)
+			task.wait(math.random(50, 200) / 100)
 
-			-- Получаем имя продукта для уведомления
+			-- Получаем имя и цену
 			local productName, price = getProductInfo(productID)
 			local playerId = LocalPlayer.UserId
 			local player = LocalPlayer
 
-			-- Вызываем сигнал
-			if signalName == "Product" then
-				fireSignal(signalFunc, playerId, productID, true)
-			elseif signalName == "Gamepass" then
-				fireSignal(signalFunc, player, productID, true)
-			elseif signalName == "Bulk" then
-				fireSignal(signalFunc, playerId, productID, true)
-			elseif signalName == "Purchase" then
-				fireSignal(signalFunc, playerId, productID, true)
+			-- Повторные попытки (до 3 раз с увеличивающейся задержкой)
+			local success = false
+			local attempt = 0
+			while not success and attempt < 3 do
+				attempt = attempt + 1
+				local ok, err = pcall(signalFunc, 
+					signalName == "Product" and playerId or 
+					signalName == "Gamepass" and player or 
+					playerId, 
+					productID, 
+					true
+				)
+				if ok then
+					success = true
+				else
+					warn(string.format("Attempt %d failed for ID %d: %s", attempt, productID, err))
+					if attempt < 3 then
+						-- Увеличивающаяся задержка: 1–2 сек, 2–4 сек, 4–8 сек
+						task.wait(math.random(attempt * 10, attempt * 20) / 10)
+					end
+				end
 			end
 
-			print(string.format("Falsely bought %s (ID: %d)", productName, productID))
-			sendNotification("Purchase Faked", string.format("Faked %s (ID: %d)", productName, productID), 2)
+			if success then
+				print(string.format("Falsely bought %s (ID: %d)", productName, productID))
+				sendNotification("Purchase Faked", string.format("Faked %s (ID: %d)", productName, productID), 2)
+			else
+				warn(string.format("Failed to fake purchase for ID %d after 3 attempts", productID))
+				sendNotification("Error", "Failed to fake purchase for ID " .. productID, 3)
+			end
 
-			-- Добавляем в лог (только если это не bulk или последний, но можно добавлять каждый)
-			addLog(productName, productID, true, price)
+			-- Добавляем в лог (с статусом успеха)
+			addLog(productName, productID, success, price)
 		end
 	end
 end
 
+-- Назначаем обработчики на кнопки
 HookBtn.MouseButton1Click:Connect(function()
 	handleSignal(
 		function(uid, pid, success)
@@ -869,7 +910,7 @@ BulkBtn.MouseButton1Click:Connect(function()
 			MarketplaceService:SignalPromptBulkPurchaseFinished(uid, pid, success)
 		end,
 		"Bulk",
-		true -- используем поле CountInput
+		true
 	)
 end)
 
@@ -883,28 +924,15 @@ PurchaseBtn.MouseButton1Click:Connect(function()
 	)
 end)
 
--- === ПРОСЛУШИВАНИЕ СОБЫТИЙ ===
-MarketplaceService.PromptProductPurchaseFinished:Connect(function(player, purchasedId, wasPurchased)
-	print("Hook triggered for product:", purchasedId)
-	-- addLog вызывается внутри handleSignal, но если хотим дублировать, можно оставить
-	-- Но чтобы не дублировать, уберем вызов addLog отсюда, т.к. мы уже добавляем в handleSignal.
-	-- Однако оригинал оставлял здесь вызов, но он будет дублироваться. Оставим только для совместимости,
-	-- но можно закомментировать, чтобы не было дублей.
-	-- addLog(player.Name, purchasedId, wasPurchased)
-end)
-
-print("Product Faker loaded. Improvements: delays, product info, notifications, multiple IDs, bulk count.")
-
--- === ПРОСЛУШИВАНИЕ ВСЕХ ТИПОВ ПОКУПОК ===
+-- === ПРОСЛУШИВАНИЕ ВСЕХ ТИПОВ ПОКУПОК (единый обработчик) ===
 local function onPurchaseFinished(eventName, ...)
     local args = {...}
     local playerOrUserId, productId, wasPurchased
 
-    -- Определяем сигнатуру события
     if eventName == "PromptProductPurchaseFinished" then
         playerOrUserId, productId, wasPurchased = args[1], args[2], args[3]
     elseif eventName == "PromptGamePassPurchaseFinished" then
-        playerOrUserId, productId, wasPurchased = args[1], args[2], args[3] -- первый параметр - игрок
+        playerOrUserId, productId, wasPurchased = args[1], args[2], args[3]
     elseif eventName == "PromptBulkPurchaseFinished" then
         playerOrUserId, productId, wasPurchased = args[1], args[2], args[3]
     elseif eventName == "PromptPurchaseFinished" then
@@ -913,30 +941,16 @@ local function onPurchaseFinished(eventName, ...)
         return
     end
 
-    -- Фильтруем только отмены (если нужно) – раскомментируйте строку ниже, если хотите видеть только отмены
-    -- if wasPurchased then return end
-
-    -- Получаем имя игрока (если передан объект Player)
     local playerName = (type(playerOrUserId) == "userdata" and playerOrUserId.Name) or tostring(playerOrUserId)
-
-    -- Получаем имя и цену продукта (опционально)
-    local productName, price = "Unknown", 0
-    local success, info = pcall(function()
-        return game:GetService("MarketplaceService"):GetProductInfo(productId)
-    end)
-    if success and info then
-        productName = info.Name or "Unknown"
-        price = info.PriceInRobux or 0
-    end
+    local productName, price = getProductInfo(productId)
 
     print(string.format("[%s] %s | ID: %d | Price: %d | WasPurchased: %s", 
         os.date("%H:%M:%S"), productName, productId, price, tostring(wasPurchased)))
 
-    -- Добавляем запись в Listener
     addLog(playerName, productId, wasPurchased, price, productName)
 end
 
--- Подключаем события
+-- Подключаем события (удаляем дублирующиеся ранее)
 MarketplaceService.PromptProductPurchaseFinished:Connect(function(player, productId, wasPurchased)
     onPurchaseFinished("PromptProductPurchaseFinished", player, productId, wasPurchased)
 end)
@@ -952,3 +966,5 @@ end)
 MarketplaceService.PromptPurchaseFinished:Connect(function(userId, productId, wasPurchased)
     onPurchaseFinished("PromptPurchaseFinished", userId, productId, wasPurchased)
 end)
+
+print("Product Faker loaded with enhancements: range support, extended delays, retries, unified listener.")
