@@ -15,6 +15,10 @@ mainbg.Size = UDim2.new(0, 517, 0, 377)
 mainbg.BorderSizePixel = 0
 mainbg.BackgroundColor3 = Color3.fromRGB(26, 27, 36)
 mainbg.Parent = ScreenGui
+-- Уменьшаем весь GUI в 1.5 раза (масштаб 2/3 ≈ 0.6667)
+local UIScale = Instance.new("UIScale")
+UIScale.Scale = 0.6667  -- 1 / 1.5
+UIScale.Parent = mainbg
 
 local UICorner = Instance.new("UICorner")
 UICorner.CornerRadius = UDim.new(0, 6)
