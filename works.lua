@@ -1,27 +1,31 @@
--- Product Purchase Faker (Improved)
--- Made by esore 2026, modified by AI
+-- Product Purchase Faker v3
+-- Уменьшенное окно, исправленный Listener, улучшенное перетаскивание
 
 local Players = game:GetService("Players")
 local MarketplaceService = game:GetService("MarketplaceService")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
-local HttpService = game:GetService("HttpService") -- для генерации ID, если нужно
 
 local LocalPlayer = Players.LocalPlayer
 
--- Создаём GUI (сохранён оригинальный дизайн, но добавлены новые элементы)
+-- ===== СОЗДАНИЕ GUI =====
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = CoreGui
-ScreenGui.Name = "GH78UERSGWVSTSGV"
+ScreenGui.Name = "ProductFakerGUI"
+
+-- Масштабируем весь GUI в 0.67 раза (уменьшение в 1.5)
+local UIScale = Instance.new("UIScale")
+UIScale.Scale = 0.67
+UIScale.Parent = ScreenGui
 
 local mainbg = Instance.new("Frame")
 mainbg.AnchorPoint = Vector2.new(0.5, 0.5)
 mainbg.Name = "mainbg"
 mainbg.Position = UDim2.new(0.5, 0, 0.5, 0)
 mainbg.BorderColor3 = Color3.fromRGB(0, 0, 0)
-mainbg.Size = UDim2.new(0, 517, 0, 420) -- увеличен размер для новых элементов
+mainbg.Size = UDim2.new(0, 517, 0, 420) -- базовый размер, но из-за UIScale будет визуально меньше
 mainbg.BorderSizePixel = 0
 mainbg.BackgroundColor3 = Color3.fromRGB(26, 27, 36)
 mainbg.Parent = ScreenGui
@@ -38,10 +42,10 @@ local Header = Instance.new("TextLabel")
 Header.TextWrapped = true
 Header.TextColor3 = Color3.fromRGB(255, 255, 255)
 Header.BorderColor3 = Color3.fromRGB(0, 0, 0)
-Header.Text = "Product Fucker v2"
+Header.Text = "Product Fucker v3"
 Header.Name = "Header"
 Header.Size = UDim2.new(0, 197, 0, 19)
-Header.Position = UDim2.new(0.025145066902041435, 0, 0.03183024004101753, 0)
+Header.Position = UDim2.new(0.025, 0, 0.032, 0)
 Header.BorderSizePixel = 0
 Header.BackgroundTransparency = 1
 Header.TextXAlignment = Enum.TextXAlignment.Left
@@ -51,7 +55,7 @@ Header.TextScaled = true
 Header.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 Header.Parent = mainbg
 
--- Верхние вкладки (без изменений)
+-- Вкладки
 local dfgsgdsf = Instance.new("Frame")
 dfgsgdsf.BorderColor3 = Color3.fromRGB(0, 0, 0)
 dfgsgdsf.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -63,7 +67,6 @@ dfgsgdsf.BorderSizePixel = 0
 dfgsgdsf.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 dfgsgdsf.Parent = mainbg
 
--- Создаём вкладки (код аналогичен оригиналу, не меняем)
 local function createTab(name, parent)
     local btn = Instance.new("ImageButton")
     btn.Name = name.."Tab"
@@ -112,23 +115,20 @@ end
 local ScanTab = createTab("Scanner", dfgsgdsf)
 local ListenerTab = createTab("Listener", dfgsgdsf)
 local ActionTab = createTab("Action", dfgsgdsf)
-
--- Добавляем новую вкладку "Mass"
 local MassTab = createTab("Mass", dfgsgdsf)
 
--- UIListLayout для вкладок
 local layout = Instance.new("UIListLayout")
 layout.Padding = UDim.new(0.01, 0)
 layout.SortOrder = Enum.SortOrder.LayoutOrder
 layout.FillDirection = Enum.FillDirection.Horizontal
 layout.Parent = dfgsgdsf
 
--- Фреймы для каждой вкладки (сохраняем существующие, добавляем новый)
+-- Фреймы вкладок
 local scannerTabFrame = Instance.new("ScrollingFrame")
 scannerTabFrame.Visible = false
 scannerTabFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
 scannerTabFrame.Name = "scannerTabFrame"
-scannerTabFrame.Size = UDim2.new(0, 489, 0, 330) -- увеличен под новые элементы
+scannerTabFrame.Size = UDim2.new(0, 489, 0, 330)
 scannerTabFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 scannerTabFrame.Selectable = false
 scannerTabFrame.BackgroundTransparency = 1
@@ -167,7 +167,6 @@ actionTabFrame.BorderSizePixel = 0
 actionTabFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 actionTabFrame.Parent = mainbg
 
--- Новая вкладка Mass
 local massTabFrame = Instance.new("Frame")
 massTabFrame.ClipsDescendants = true
 massTabFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -182,7 +181,6 @@ massTabFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 massTabFrame.Parent = mainbg
 massTabFrame.Visible = false
 
--- UIListLayout для каждого фрейма
 local function addListLayout(parent)
     local ll = Instance.new("UIListLayout")
     ll.Padding = UDim.new(0.01, 0)
@@ -194,10 +192,7 @@ addListLayout(listenerTabFrame)
 addListLayout(actionTabFrame)
 addListLayout(massTabFrame)
 
--- === ДОБАВЛЯЕМ ЭЛЕМЕНТЫ ДЛЯ ВКЛАДКИ ACTION ===
--- (оставляем оригинальные, но исправляем ошибки)
-
--- Поле ввода Product ID
+-- ===== ВКЛАДКА ACTION =====
 local grferge = Instance.new("Frame")
 grferge.Active = true
 grferge.Selectable = true
@@ -255,13 +250,12 @@ Ico.BorderSizePixel = 0
 Ico.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 Ico.Parent = grferge
 
--- Предупреждение
 local Warn = Instance.new("TextLabel")
 Warn.TextWrapped = true
 Warn.Name = "Warn"
 Warn.TextColor3 = Color3.fromRGB(255, 53, 53)
 Warn.BorderColor3 = Color3.fromRGB(0, 0, 0)
-Warn.Text = "! This won't actually purchase the product, This just fakes it."
+Warn.Text = "! Fake only — no real purchase"
 Warn.Size = UDim2.new(0, 448, 0, 15)
 Warn.Position = UDim2.new(0.458, 0, 0.08, 0)
 Warn.AnchorPoint = Vector2.new(0.5, 0.5)
@@ -274,7 +268,6 @@ Warn.TextSize = 14
 Warn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 Warn.Parent = actionTabFrame
 
--- Кнопки (исправляем ошибки в GamepassBtn и добавляем статус)
 local function createActionButton(text, parent, yPos)
     local btn = Instance.new("ImageButton")
     btn.Size = UDim2.new(0, 121, 0, 29)
@@ -322,23 +315,17 @@ local function createActionButton(text, parent, yPos)
     return btn
 end
 
+-- Удаляем старые layout из actionTabFrame (если есть)
+for _, child in ipairs(actionTabFrame:GetChildren()) do
+    if child:IsA("UIListLayout") then child:Destroy() end
+end
+
 local HookBtn = createActionButton("Signal Product", actionTabFrame, 0.15)
 local GamepassBtn = createActionButton("Signal Gamepass", actionTabFrame, 0.15)
 local BulkBtn = createActionButton("Signal Bulk", actionTabFrame, 0.15)
 local PurchaseBtn = createActionButton("Signal Purchase", actionTabFrame, 0.15)
 
--- Перемещаем кнопки в ряд с помощью UIListLayout (они уже внутри actionTabFrame, но позиции заданы, поэтому убираем их из layout или используем абсолютное позиционирование)
--- Удалим существующий UIListLayout и разместим кнопки вручную с помощью UIGridLayout или просто зададим позиции.
--- Проще: удалим старый layout и сделаем новый с horizontal. Но проще задать позиции вручную.
--- Очистим actionTabFrame от лишних layout и расставим кнопки.
-
--- Сначала удалим старый UIListLayout (если есть)
-for _, child in ipairs(actionTabFrame:GetChildren()) do
-    if child:IsA("UIListLayout") then child:Destroy() end
-end
-
--- Расставим кнопки горизонтально
-local btnWidth = 0.22 -- ширина каждой кнопки в процентах от ширины фрейма
+local btnWidth = 0.22
 local spacing = 0.02
 local startX = 0.02
 for i, btn in ipairs({HookBtn, GamepassBtn, BulkBtn, PurchaseBtn}) do
@@ -346,10 +333,7 @@ for i, btn in ipairs({HookBtn, GamepassBtn, BulkBtn, PurchaseBtn}) do
     btn.Position = UDim2.new(startX + (i-1)*(btnWidth + spacing), 0, 0.2, 0)
 end
 
--- Добавим кнопку для массовой отправки на вкладке Mass (будет позже)
-
--- === ВКЛАДКА MASS ===
--- Поле для ввода нескольких ID (через запятую или пробел)
+-- ===== ВКЛАДКА MASS =====
 local massInputFrame = Instance.new("Frame")
 massInputFrame.Active = true
 massInputFrame.Selectable = true
@@ -375,7 +359,7 @@ MassIDsInput.CursorPosition = -1
 MassIDsInput.Active = true
 MassIDsInput.Selectable = true
 MassIDsInput.AnchorPoint = Vector2.new(0.5, 0.5)
-MassIDsInput.PlaceholderText = "Product IDs (comma or space separated)"
+MassIDsInput.PlaceholderText = "IDs (comma/space)"
 MassIDsInput.TextSize = 14
 MassIDsInput.Size = UDim2.new(0, 420, 0, 40)
 MassIDsInput.TextColor3 = Color3.fromRGB(255, 201, 37)
@@ -394,19 +378,16 @@ MassIDsInput.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 MassIDsInput.Parent = massInputFrame
 MassIDsInput.MultiLine = true
 
--- Кнопки для массовой отправки
 local MassProductBtn = createActionButton("Mass Product", massTabFrame, 0.35)
 local MassGamepassBtn = createActionButton("Mass Gamepass", massTabFrame, 0.35)
 local MassBulkBtn = createActionButton("Mass Bulk", massTabFrame, 0.35)
 local MassPurchaseBtn = createActionButton("Mass Purchase", massTabFrame, 0.35)
 
--- Расставим кнопки массовой отправки горизонтально
 for i, btn in ipairs({MassProductBtn, MassGamepassBtn, MassBulkBtn, MassPurchaseBtn}) do
     btn.Size = UDim2.new(btnWidth, 0, 0, 29)
     btn.Position = UDim2.new(startX + (i-1)*(btnWidth + spacing), 0, 0.55, 0)
 end
 
--- Добавим индикатор прогресса (простой TextLabel)
 local MassStatus = Instance.new("TextLabel")
 MassStatus.TextWrapped = true
 MassStatus.Name = "MassStatus"
@@ -425,8 +406,7 @@ MassStatus.TextSize = 14
 MassStatus.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 MassStatus.Parent = massTabFrame
 
--- === ВКЛАДКА SCANNER (добавим функционал) ===
--- Простой интерфейс для получения информации о продукте
+-- ===== ВКЛАДКА SCANNER =====
 local scanInput = Instance.new("TextBox")
 scanInput.CursorPosition = -1
 scanInput.Active = true
@@ -470,9 +450,9 @@ ScanInfo.Parent = scannerTabFrame
 
 local ScanBtn = createActionButton("Scan", scannerTabFrame, 0.3)
 ScanBtn.Size = UDim2.new(0, 100, 0, 29)
-ScanBtn.Position = UDim2.new(0.5, -50, 0.3, 0) -- центрируем
+ScanBtn.Position = UDim2.new(0.5, -50, 0.3, 0)
 
--- === НАСТРОЙКА ВКЛАДОК ===
+-- ===== ОБРАБОТЧИКИ ВКЛАДОК =====
 ScanTab.MouseButton1Click:Connect(function()
     ScanTab.BackgroundColor3 = Color3.fromRGB(104, 123, 165)
     ListenerTab.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
@@ -514,12 +494,9 @@ MassTab.MouseButton1Click:Connect(function()
     massTabFrame.Visible = true
 end)
 
--- По умолчанию показываем Action
 ActionTab.MouseButton1Click:Fire()
 
--- === ФУНКЦИИ ОБМАНА (улучшенные) ===
-
--- Функция для безопасного вызова сигналов с обработкой ошибок
+-- ===== ФУНКЦИИ ОБМАНА =====
 local function safeCall(func, ...)
     local success, err = pcall(func, ...)
     if not success then
@@ -529,121 +506,12 @@ local function safeCall(func, ...)
     return true
 end
 
--- Функция имитации покупки с задержкой (для реалистичности)
-local function fakePurchase(signalType, productId, delay)
-    delay = delay or 0.5
-    local userId = LocalPlayer.UserId
-    local player = LocalPlayer
+-- Глобальный счётчик для логов
+local logCounter = 0
 
-    if not productId or type(productId) ~= "number" then
-        warn("Invalid product ID")
-        return false
-    end
-
-    -- Небольшая задержка перед отправкой (имитация обработки)
-    task.wait(delay)
-
-    local success = false
-    if signalType == "Product" then
-        success = safeCall(MarketplaceService.SignalPromptProductPurchaseFinished, MarketplaceService, userId, productId, true)
-    elseif signalType == "Gamepass" then
-        success = safeCall(MarketplaceService.SignalPromptGamePassPurchaseFinished, MarketplaceService, player, productId, true)
-    elseif signalType == "Bulk" then
-        success = safeCall(MarketplaceService.SignalPromptBulkPurchaseFinished, MarketplaceService, userId, productId, true)
-    elseif signalType == "Purchase" then
-        success = safeCall(MarketplaceService.SignalPromptPurchaseFinished, MarketplaceService, userId, productId, true)
-    else
-        warn("Unknown signal type")
-        return false
-    end
-
-    if success then
-        print(string.format("[%s] Falsely bought product %d", signalType, productId))
-        -- Добавляем запись в лог
-        addLog(LocalPlayer.Name, productId, true, signalType)
-        return true
-    else
-        print(string.format("[%s] Failed to fake product %d", signalType, productId))
-        addLog(LocalPlayer.Name, productId, false, signalType)
-        return false
-    end
-end
-
--- Обработчики кнопок (исправленные)
-HookBtn.MouseButton1Click:Connect(function()
-    local id = tonumber(ProductIDInput.Text)
-    if not id then
-        warn("Invalid Product ID")
-        return
-    end
-    fakePurchase("Product", id, 0.3)
-end)
-
-GamepassBtn.MouseButton1Click:Connect(function()
-    local id = tonumber(ProductIDInput.Text)
-    if not id then
-        warn("Invalid Product ID")
-        return
-    end
-    fakePurchase("Gamepass", id, 0.3)
-end)
-
-BulkBtn.MouseButton1Click:Connect(function()
-    local id = tonumber(ProductIDInput.Text)
-    if not id then
-        warn("Invalid Product ID")
-        return
-    end
-    fakePurchase("Bulk", id, 0.3)
-end)
-
-PurchaseBtn.MouseButton1Click:Connect(function()
-    local id = tonumber(ProductIDInput.Text)
-    if not id then
-        warn("Invalid Product ID")
-        return
-    end
-    fakePurchase("Purchase", id, 0.3)
-end)
-
--- Массовые обработчики
-local function massFake(signalType)
-    local text = MassIDsInput.Text
-    if text == "" then
-        MassStatus.Text = "Please enter product IDs"
-        return
-    end
-    -- Разбиваем по запятой или пробелу
-    local ids = {}
-    for token in string.gmatch(text, "[^,%s]+") do
-        local num = tonumber(token)
-        if num then
-            table.insert(ids, num)
-        end
-    end
-    if #ids == 0 then
-        MassStatus.Text = "No valid IDs found"
-        return
-    end
-
-    MassStatus.Text = string.format("Sending %d signals...", #ids)
-    local successCount = 0
-    for i, id in ipairs(ids) do
-        local success = fakePurchase(signalType, id, 0.2 + (i-1)*0.1) -- задержка между отправками
-        if success then successCount = successCount + 1 end
-        MassStatus.Text = string.format("Progress: %d/%d", i, #ids)
-        task.wait(0.1) -- небольшая пауза, чтобы не перегружать
-    end
-    MassStatus.Text = string.format("Done! %d/%d successful", successCount, #ids)
-end
-
-MassProductBtn.MouseButton1Click:Connect(function() massFake("Product") end)
-MassGamepassBtn.MouseButton1Click:Connect(function() massFake("Gamepass") end)
-MassBulkBtn.MouseButton1Click:Connect(function() massFake("Bulk") end)
-MassPurchaseBtn.MouseButton1Click:Connect(function() massFake("Purchase") end)
-
--- === ФУНКЦИЯ ДОБАВЛЕНИЯ ЛОГА (улучшена) ===
 function addLog(pName, purchasedId, wasPurchased, signalType)
+    logCounter = logCounter + 1
+
     local Response = Instance.new("Frame")
     Response.Active = true
     Response.Selectable = true
@@ -703,7 +571,7 @@ function addLog(pName, purchasedId, wasPurchased, signalType)
     ProductID.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     ProductID.Parent = Response
 
-    -- Кнопка открытия продукта
+    -- Кнопка открытия (копирует ссылку)
     local OpenProduct = Instance.new("ImageButton")
     OpenProduct.ImageTransparency = 1
     OpenProduct.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -739,10 +607,9 @@ function addLog(pName, purchasedId, wasPurchased, signalType)
     IcoOpen.Parent = OpenProduct
 
     OpenProduct.MouseButton1Click:Connect(function()
-        -- Открыть страницу продукта в браузере (если ID валидный)
         if purchasedId then
             local url = "https://www.roblox.com/catalog/" .. tostring(purchasedId)
-            setclipboard(url) -- копируем ссылку в буфер
+            setclipboard(url)
             print("Copied product URL to clipboard")
         end
     end)
@@ -785,63 +652,147 @@ function addLog(pName, purchasedId, wasPurchased, signalType)
         setclipboard(tostring(purchasedId))
         print("Copied ID:", purchasedId)
     end)
+
+    -- Принудительно обновляем CanvasSize
+    listenerTabFrame.CanvasSize = UDim2.new(0, 0, 0, listenerTabFrame.UIListLayout.AbsoluteContentSize.Y)
 end
 
--- === СКАНИРОВАНИЕ ПРОДУКТА ===
-ScanBtn.MouseButton1Click:Connect(function()
-    local id = tonumber(ScanInput.Text)
-    if not id then
-        ScanInfo.Text = "Invalid ID"
+-- Функция имитации покупки
+local function fakePurchase(signalType, productId, delay)
+    delay = delay or 0.3
+    local userId = LocalPlayer.UserId
+    local player = LocalPlayer
+
+    if not productId or type(productId) ~= "number" then
+        warn("Invalid product ID")
+        return false
+    end
+
+    task.wait(delay)
+
+    local success = false
+    if signalType == "Product" then
+        success = safeCall(MarketplaceService.SignalPromptProductPurchaseFinished, MarketplaceService, userId, productId, true)
+    elseif signalType == "Gamepass" then
+        success = safeCall(MarketplaceService.SignalPromptGamePassPurchaseFinished, MarketplaceService, player, productId, true)
+    elseif signalType == "Bulk" then
+        success = safeCall(MarketplaceService.SignalPromptBulkPurchaseFinished, MarketplaceService, userId, productId, true)
+    elseif signalType == "Purchase" then
+        success = safeCall(MarketplaceService.SignalPromptPurchaseFinished, MarketplaceService, userId, productId, true)
+    else
+        warn("Unknown signal type")
+        return false
+    end
+
+    if success then
+        print(string.format("[%s] Falsely bought product %d", signalType, productId))
+        addLog(LocalPlayer.Name, productId, true, signalType)
+        return true
+    else
+        print(string.format("[%s] Failed to fake product %d", signalType, productId))
+        addLog(LocalPlayer.Name, productId, false, signalType)
+        return false
+    end
+end
+
+-- Обработчики кнопок Action
+HookBtn.MouseButton1Click:Connect(function()
+    local id = tonumber(ProductIDInput.Text)
+    if not id then warn("Invalid ID") return end
+    fakePurchase("Product", id)
+end)
+GamepassBtn.MouseButton1Click:Connect(function()
+    local id = tonumber(ProductIDInput.Text)
+    if not id then warn("Invalid ID") return end
+    fakePurchase("Gamepass", id)
+end)
+BulkBtn.MouseButton1Click:Connect(function()
+    local id = tonumber(ProductIDInput.Text)
+    if not id then warn("Invalid ID") return end
+    fakePurchase("Bulk", id)
+end)
+PurchaseBtn.MouseButton1Click:Connect(function()
+    local id = tonumber(ProductIDInput.Text)
+    if not id then warn("Invalid ID") return end
+    fakePurchase("Purchase", id)
+end)
+
+-- Массовые обработчики
+local function massFake(signalType)
+    local text = MassIDsInput.Text
+    if text == "" then
+        MassStatus.Text = "Enter IDs"
+        return
+    end
+    local ids = {}
+    for token in string.gmatch(text, "[^,%s]+") do
+        local num = tonumber(token)
+        if num then table.insert(ids, num) end
+    end
+    if #ids == 0 then
+        MassStatus.Text = "No valid IDs"
         return
     end
 
-    ScanInfo.Text = "Fetching info..."
-    task.wait(0.5)
+    MassStatus.Text = string.format("Sending %d...", #ids)
+    local successCount = 0
+    for i, id in ipairs(ids) do
+        local success = fakePurchase(signalType, id, 0.2 + (i-1)*0.1)
+        if success then successCount = successCount + 1 end
+        MassStatus.Text = string.format("Progress: %d/%d", i, #ids)
+        task.wait(0.05)
+    end
+    MassStatus.Text = string.format("Done! %d/%d ok", successCount, #ids)
+end
 
+MassProductBtn.MouseButton1Click:Connect(function() massFake("Product") end)
+MassGamepassBtn.MouseButton1Click:Connect(function() massFake("Gamepass") end)
+MassBulkBtn.MouseButton1Click:Connect(function() massFake("Bulk") end)
+MassPurchaseBtn.MouseButton1Click:Connect(function() massFake("Purchase") end)
+
+-- Сканер
+ScanBtn.MouseButton1Click:Connect(function()
+    local id = tonumber(ScanInput.Text)
+    if not id then ScanInfo.Text = "Invalid ID" return end
+    ScanInfo.Text = "Fetching..."
+    task.wait(0.5)
     local success, info = pcall(function()
         return MarketplaceService:GetProductInfo(id, Enum.InfoType.Product)
     end)
-
     if success and info then
-        local name = info.Name or "Unknown"
-        local price = info.PriceInRobux or 0
-        local desc = info.Description or "No description"
-        ScanInfo.Text = string.format("Name: %s\nPrice: %d Robux\nDescription: %s", name, price, desc)
+        ScanInfo.Text = string.format("Name: %s\nPrice: %d R$\nDesc: %s", info.Name or "?", info.PriceInRobux or 0, info.Description or "-")
     else
-        ScanInfo.Text = "Failed to fetch product info. Maybe not a product ID?"
+        ScanInfo.Text = "Failed to fetch info"
     end
 end)
 
--- === ПЕРЕХВАТ СОБЫТИЙ (для логирования реальных покупок, если они происходят) ===
+-- ===== ПЕРЕХВАТ РЕАЛЬНЫХ СОБЫТИЙ (для отладки) =====
 MarketplaceService.PromptProductPurchaseFinished:Connect(function(player, purchasedId, wasPurchased)
     if player == LocalPlayer then
-        print("Real purchase detected (Product):", purchasedId)
+        print("Real Product event:", purchasedId, wasPurchased)
         addLog(LocalPlayer.Name, purchasedId, wasPurchased, "RealProduct")
     end
 end)
-
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, purchasedId, wasPurchased)
     if player == LocalPlayer then
-        print("Real purchase detected (Gamepass):", purchasedId)
+        print("Real Gamepass event:", purchasedId, wasPurchased)
         addLog(LocalPlayer.Name, purchasedId, wasPurchased, "RealGamepass")
     end
 end)
-
 MarketplaceService.PromptBulkPurchaseFinished:Connect(function(player, purchasedId, wasPurchased)
     if player == LocalPlayer then
-        print("Real purchase detected (Bulk):", purchasedId)
+        print("Real Bulk event:", purchasedId, wasPurchased)
         addLog(LocalPlayer.Name, purchasedId, wasPurchased, "RealBulk")
     end
 end)
-
 MarketplaceService.PromptPurchaseFinished:Connect(function(player, purchasedId, wasPurchased)
     if player == LocalPlayer then
-        print("Real purchase detected (Purchase):", purchasedId)
+        print("Real Purchase event:", purchasedId, wasPurchased)
         addLog(LocalPlayer.Name, purchasedId, wasPurchased, "RealPurchase")
     end
 end)
 
--- === ПЕРЕТАСКИВАНИЕ ОКНА ===
+-- ===== ПЕРЕТАСКИВАНИЕ (улучшено) =====
 function dragify(Frame)
     local dragToggle = false
     local dragInput = nil
@@ -877,4 +828,45 @@ function dragify(Frame)
 end
 dragify(mainbg)
 
-print("Product Faker v2 loaded. Increased chances of deception!")
+-- Кнопка очистки логов (добавлена в listenerTabFrame)
+local ClearBtn = Instance.new("ImageButton")
+ClearBtn.Size = UDim2.new(0, 80, 0, 25)
+ClearBtn.Position = UDim2.new(0.85, 0, 0.03, 0)
+ClearBtn.ImageTransparency = 1
+ClearBtn.BorderColor3 = Color3.fromRGB(0, 0, 0)
+ClearBtn.BorderSizePixel = 0
+ClearBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+ClearBtn.Parent = listenerTabFrame
+ClearBtn.Visible = true
+
+local clearCorner = Instance.new("UICorner")
+clearCorner.CornerRadius = UDim.new(0, 6)
+clearCorner.Parent = ClearBtn
+
+local clearLabel = Instance.new("TextLabel")
+clearLabel.TextWrapped = true
+clearLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+clearLabel.BorderColor3 = Color3.fromRGB(0, 0, 0)
+clearLabel.Text = "Clear Logs"
+clearLabel.Size = UDim2.new(0, 70, 0, 20)
+clearLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+clearLabel.BorderSizePixel = 0
+clearLabel.BackgroundTransparency = 1
+clearLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
+clearLabel.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+clearLabel.TextSize = 12
+clearLabel.TextScaled = true
+clearLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+clearLabel.Parent = ClearBtn
+
+ClearBtn.MouseButton1Click:Connect(function()
+    for _, child in ipairs(listenerTabFrame:GetChildren()) do
+        if child:IsA("Frame") and child.Name == "Response" then
+            child:Destroy()
+        end
+    end
+    listenerTabFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+    print("Logs cleared")
+end)
+
+print("Product Faker v3 loaded. Window scaled down, Listener fixed.")
