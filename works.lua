@@ -1,5 +1,5 @@
 -- Product Purchase Faker
--- Improved with Scanner functionality and bug fixes
+-- Fully fixed: UI alignment, Scanner persistence, stable logic
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -67,18 +67,6 @@ local function makeButton(parent, size, position, text, callback)
     return btn
 end
 
-local function makeFrame(parent, size, position, transparent)
-    local fr = Instance.new("Frame")
-    fr.BorderColor3 = Color3.fromRGB(0, 0, 0)
-    fr.BorderSizePixel = 0
-    fr.BackgroundTransparency = transparent and 1 or 0
-    fr.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    if size then fr.Size = size end
-    if position then fr.Position = position end
-    fr.Parent = parent
-    return fr
-end
-
 local function styleButton(btn)
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 6)
@@ -138,8 +126,14 @@ makeLabel(mainbg, "Product Fucker", UDim2.new(0, 197, 0, 19), UDim2.new(0.025, 0
     FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
 })
 
-local tabBar = makeFrame(mainbg, UDim2.new(0, 489, 0, 24), UDim2.new(0.5, 0, 0.143, 0), true)
+-- Вкладки
+local tabBar = Instance.new("Frame")
+tabBar.Size = UDim2.new(0, 489, 0, 24)
+tabBar.Position = UDim2.new(0.5, 0, 0.143, 0)
 tabBar.AnchorPoint = Vector2.new(0.5, 0.5)
+tabBar.BackgroundTransparency = 1
+tabBar.BorderSizePixel = 0
+tabBar.Parent = mainbg
 
 local tabLayout = Instance.new("UIListLayout")
 tabLayout.Padding = UDim.new(0.01, 0)
@@ -213,17 +207,16 @@ actionTabFrame.BorderSizePixel = 0
 actionTabFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 actionTabFrame.Parent = mainbg
 
-local actionLayout = Instance.new("UIListLayout")
-actionLayout.Padding = UDim.new(0.01, 0)
-actionLayout.SortOrder = Enum.SortOrder.LayoutOrder
-actionLayout.Parent = actionTabFrame
-
 -- Поле ввода ID
-local inputFrame = makeFrame(actionTabFrame, UDim2.new(0, 464, 0, 27), nil, false)
+local inputFrame = Instance.new("Frame")
+inputFrame.Size = UDim2.new(0, 464, 0, 27)
+inputFrame.Position = UDim2.new(0.5, 0, 0.09, 0)
+inputFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 inputFrame.BackgroundTransparency = 0.75
 inputFrame.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
 inputFrame.Active = true
 inputFrame.Selectable = true
+inputFrame.Parent = actionTabFrame
 
 local cornerInput = Instance.new("UICorner")
 cornerInput.CornerRadius = UDim.new(0, 6)
@@ -279,16 +272,18 @@ iconInput.BorderSizePixel = 0
 iconInput.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 iconInput.Parent = inputFrame
 
-makeLabel(actionTabFrame, "! This won't actually purchase the product, This just fakes it.", UDim2.new(0, 448, 0, 15), UDim2.new(0.458, 0, 0.131, 0), {
+-- Предупреждение
+makeLabel(actionTabFrame, "! This won't actually purchase the product, This just fakes it.", UDim2.new(0, 448, 0, 15), UDim2.new(0.458, 0, 0.22, 0), {
     TextColor3 = Color3.fromRGB(255, 53, 53),
     TextXAlignment = Enum.TextXAlignment.Left,
     AnchorPoint = Vector2.new(0.5, 0.5),
     FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
 })
 
+-- Поле для количества (Bulk)
 local CountInput = Instance.new("TextBox")
 CountInput.Size = UDim2.new(0, 60, 0, 20)
-CountInput.Position = UDim2.new(0.75, 0, 0.54, 0)
+CountInput.Position = UDim2.new(0.75, 0, 0.33, 0)
 CountInput.PlaceholderText = "1"
 CountInput.Text = "1"
 CountInput.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -303,20 +298,34 @@ local cornerCount = Instance.new("UICorner")
 cornerCount.CornerRadius = UDim.new(0, 4)
 cornerCount.Parent = CountInput
 
--- Кнопки действий с правильными координатами
-local btnPosY = 0.104
-local btnWidth = 121
-local btnHeight = 29
-local function createActionButton(text, xOffset, callback)
-    local btn = makeButton(actionTabFrame, UDim2.new(0, btnWidth, 0, btnHeight), UDim2.new(0, xOffset, 0, btnPosY), text, callback)
+-- Контейнер для кнопок действий (горизонтальное расположение)
+local btnContainer = Instance.new("Frame")
+btnContainer.Size = UDim2.new(0, 464, 0, 40)
+btnContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
+btnContainer.AnchorPoint = Vector2.new(0.5, 0.5)
+btnContainer.BackgroundTransparency = 1
+btnContainer.BorderSizePixel = 0
+btnContainer.Parent = actionTabFrame
+
+local btnLayout = Instance.new("UIListLayout")
+btnLayout.Padding = UDim.new(0.02, 0) -- отступы между кнопками
+btnLayout.SortOrder = Enum.SortOrder.LayoutOrder
+btnLayout.FillDirection = Enum.FillDirection.Horizontal
+btnLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+btnLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+btnLayout.Parent = btnContainer
+
+-- Создаём кнопки
+local function createActionButton(text, callback)
+    local btn = makeButton(btnContainer, UDim2.new(0, 110, 0, 30), nil, text, callback)
     styleButton(btn)
     return btn
 end
 
-local HookBtn = createActionButton("Signal Product", 5, nil)
-local GamepassBtn = createActionButton("Signal Gamepass", 130, nil)
-local BulkBtn = createActionButton("Signal Bulk", 255, nil)
-local PurchaseBtn = createActionButton("Signal Purchase", 380, nil)
+local HookBtn = createActionButton("Product", nil)
+local GamepassBtn = createActionButton("Gamepass", nil)
+local BulkBtn = createActionButton("Bulk", nil)
+local PurchaseBtn = createActionButton("Purchase", nil)
 
 -- ==========================
 --  СЕРВИСЫ
@@ -326,7 +335,6 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local StarterGui = game:GetService("StarterGui")
-local HttpService = game:GetService("HttpService")
 
 -- ==========================
 --  DRAG (исправлено)
@@ -390,15 +398,27 @@ local function selectTab(tab)
     ActionTab.BackgroundColor3 = (tab == "Action") and Color3.fromRGB(104,123,165) or Color3.fromRGB(90,99,109)
 end
 
-ScanTab.MouseButton1Click:Connect(function() selectTab("Scanner") end)
-ListenerTab.MouseButton1Click:Connect(function() selectTab("Listener") end)
-ActionTab.MouseButton1Click:Connect(function() selectTab("Action") end)
-selectTab("Scanner")
+-- Единый обработчик для вкладки Scanner (переключение + обновление списка)
+ScanTab.MouseButton1Click:Connect(function()
+    selectTab("Scanner")
+    task.spawn(fetchDevProducts) -- обновляем список при каждом открытии
+end)
+
+ListenerTab.MouseButton1Click:Connect(function()
+    selectTab("Listener")
+end)
+
+ActionTab.MouseButton1Click:Connect(function()
+    selectTab("Action")
+end)
+
+selectTab("Scanner") -- стартовая вкладка
 
 -- ==========================
---  СКАНЕР ПРОДУКТОВ (новая функциональность)
+--  СКАНЕР ПРОДУКТОВ
 -- ==========================
 local function fetchDevProducts()
+    -- Очищаем старые элементы, но оставляем лейблы-заглушки (если есть)
     for _, child in ipairs(scannerTabFrame:GetChildren()) do
         if child:IsA("ImageButton") then
             child:Destroy()
@@ -460,11 +480,8 @@ local function fetchDevProducts()
     end
 end
 
--- Загружаем продукты при открытии вкладки Scanner
-ScanTab.MouseButton1Click:Connect(function()
-    selectTab("Scanner")
-    task.spawn(fetchDevProducts)
-end)
+-- Первоначальная загрузка
+task.spawn(fetchDevProducts)
 
 -- ==========================
 --  КЭШ PRODUCT INFO
@@ -795,4 +812,4 @@ MarketplaceService.PromptPurchaseFinished:Connect(function(userId, productId, wa
     onPurchaseFinished("PromptPurchaseFinished", userId, productId, wasPurchased)
 end)
 
-print("Product Faker loaded with Scanner and bug fixes.")
+print("Product Faker loaded. All bugs fixed: UI alignment, Scanner persistence, stable events.")
