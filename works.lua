@@ -1,6 +1,6 @@
 -- Product Purchase Faker
 -- Made by esore 2026
--- Fixed: Scanner now loads products, ID input enabled, auto-fill on product click
+-- Fixed: Action tab fully visible, window scaled down 1.5x, all elements aligned
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -12,10 +12,15 @@ mainbg.AnchorPoint = Vector2.new(0.5, 0.5)
 mainbg.Name = "mainbg"
 mainbg.Position = UDim2.new(0.5, 0, 0.5, 0)
 mainbg.BorderColor3 = Color3.fromRGB(0, 0, 0)
-mainbg.Size = UDim2.new(0, 517, 0, 377)
+mainbg.Size = UDim2.new(0, 517, 0, 377)  -- исходный размер, но будет уменьшен через UIScale
 mainbg.BorderSizePixel = 0
 mainbg.BackgroundColor3 = Color3.fromRGB(26, 27, 36)
 mainbg.Parent = ScreenGui
+
+-- Уменьшаем всё окно в 1.5 раза (0.6667 = 1/1.5)
+local UIScale = Instance.new("UIScale")
+UIScale.Scale = 0.6667
+UIScale.Parent = mainbg
 
 local UICorner = Instance.new("UICorner")
 UICorner.CornerRadius = UDim.new(0, 6)
@@ -25,6 +30,7 @@ local UIStroke = Instance.new("UIStroke")
 UIStroke.Color = Color3.fromRGB(154, 154, 154)
 UIStroke.Parent = mainbg
 
+-- Заголовок
 local Header = Instance.new("TextLabel")
 Header.TextWrapped = true
 Header.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -32,7 +38,7 @@ Header.BorderColor3 = Color3.fromRGB(0, 0, 0)
 Header.Text = "Product Fucker"
 Header.Name = "Header"
 Header.Size = UDim2.new(0, 197, 0, 19)
-Header.Position = UDim2.new(0.025145066902041435, 0, 0.03183024004101753, 0)
+Header.Position = UDim2.new(0.025, 0, 0.032, 0)
 Header.BorderSizePixel = 0
 Header.BackgroundTransparency = 1
 Header.TextXAlignment = Enum.TextXAlignment.Left
@@ -42,34 +48,26 @@ Header.TextScaled = true
 Header.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 Header.Parent = mainbg
 
-local dfgsgdsf = Instance.new("Frame")
-dfgsgdsf.BorderColor3 = Color3.fromRGB(0, 0, 0)
-dfgsgdsf.AnchorPoint = Vector2.new(0.5, 0.5)
-dfgsgdsf.BackgroundTransparency = 1
-dfgsgdsf.Position = UDim2.new(0.5, 0, 0.14300000667572021, 0)
-dfgsgdsf.Name = "dfgsgdsf"
-dfgsgdsf.Size = UDim2.new(0, 489, 0, 24)
-dfgsgdsf.BorderSizePixel = 0
-dfgsgdsf.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-dfgsgdsf.Parent = mainbg
+-- Панель вкладок
+local tabBar = Instance.new("Frame")
+tabBar.BorderColor3 = Color3.fromRGB(0, 0, 0)
+tabBar.AnchorPoint = Vector2.new(0.5, 0.5)
+tabBar.BackgroundTransparency = 1
+tabBar.Position = UDim2.new(0.5, 0, 0.143, 0)
+tabBar.Name = "tabBar"
+tabBar.Size = UDim2.new(0, 489, 0, 24)
+tabBar.BorderSizePixel = 0
+tabBar.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+tabBar.Parent = mainbg
 
-local UIListLayout_tabs = Instance.new("UIListLayout")
-UIListLayout_tabs.Padding = UDim.new(0.009999999776482582, 0)
-UIListLayout_tabs.SortOrder = Enum.SortOrder.LayoutOrder
-UIListLayout_tabs.FillDirection = Enum.FillDirection.Horizontal
-UIListLayout_tabs.Parent = dfgsgdsf
+local tabLayout = Instance.new("UIListLayout")
+tabLayout.Padding = UDim.new(0.01, 0)
+tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
+tabLayout.FillDirection = Enum.FillDirection.Horizontal
+tabLayout.Parent = tabBar
 
--- Tab buttons
-local ScanTab = Instance.new("ImageButton")
-ScanTab.Name = "ScanTab"
-ScanTab.ImageTransparency = 1
-ScanTab.BorderColor3 = Color3.fromRGB(0, 0, 0)
-ScanTab.Size = UDim2.new(0, 100, 0, 24)
-ScanTab.BorderSizePixel = 0
-ScanTab.BackgroundColor3 = Color3.fromRGB(104, 123, 165)
-ScanTab.Parent = dfgsgdsf
-
-local function styleTabButton(btn)
+-- Вспомогательная функция для стилизации кнопок вкладок
+local function styleTabButton(btn, text)
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 6)
     corner.Parent = btn
@@ -90,7 +88,7 @@ local function styleTabButton(btn)
     label.TextWrapped = true
     label.TextColor3 = Color3.fromRGB(255, 255, 255)
     label.BorderColor3 = Color3.fromRGB(0, 0, 0)
-    label.Text = btn.Name:gsub("Tab", "")
+    label.Text = text
     label.Size = UDim2.new(1, -10, 1, -4)
     label.AnchorPoint = Vector2.new(0.5, 0.5)
     label.Position = UDim2.new(0.5, 0, 0.5, 0)
@@ -103,7 +101,16 @@ local function styleTabButton(btn)
     label.Parent = btn
 end
 
-styleTabButton(ScanTab)
+-- Кнопки вкладок
+local ScanTab = Instance.new("ImageButton")
+ScanTab.Name = "ScanTab"
+ScanTab.ImageTransparency = 1
+ScanTab.BorderColor3 = Color3.fromRGB(0, 0, 0)
+ScanTab.Size = UDim2.new(0, 100, 0, 24)
+ScanTab.BorderSizePixel = 0
+ScanTab.BackgroundColor3 = Color3.fromRGB(104, 123, 165)
+ScanTab.Parent = tabBar
+styleTabButton(ScanTab, "Scanner")
 
 local ListenerTab = Instance.new("ImageButton")
 ListenerTab.Name = "ListenerTab"
@@ -112,8 +119,8 @@ ListenerTab.BorderColor3 = Color3.fromRGB(0, 0, 0)
 ListenerTab.Size = UDim2.new(0, 100, 0, 24)
 ListenerTab.BorderSizePixel = 0
 ListenerTab.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
-ListenerTab.Parent = dfgsgdsf
-styleTabButton(ListenerTab)
+ListenerTab.Parent = tabBar
+styleTabButton(ListenerTab, "Listener")
 
 local ActionTab = Instance.new("ImageButton")
 ActionTab.Name = "ActionTab"
@@ -122,10 +129,10 @@ ActionTab.BorderColor3 = Color3.fromRGB(0, 0, 0)
 ActionTab.Size = UDim2.new(0, 100, 0, 24)
 ActionTab.BorderSizePixel = 0
 ActionTab.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
-ActionTab.Parent = dfgsgdsf
-styleTabButton(ActionTab)
+ActionTab.Parent = tabBar
+styleTabButton(ActionTab, "Action")
 
--- Tab frames
+-- Контейнеры вкладок
 local scannerTabFrame = Instance.new("ScrollingFrame")
 scannerTabFrame.Visible = false
 scannerTabFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -134,17 +141,17 @@ scannerTabFrame.Size = UDim2.new(0, 489, 0, 286)
 scannerTabFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 scannerTabFrame.Selectable = false
 scannerTabFrame.BackgroundTransparency = 1
-scannerTabFrame.Position = UDim2.new(0.5, 0, 0.5859708786010742, 0)
+scannerTabFrame.Position = UDim2.new(0.5, 0, 0.586, 0)
 scannerTabFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 scannerTabFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
 scannerTabFrame.BorderSizePixel = 0
 scannerTabFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 scannerTabFrame.Parent = mainbg
 
-local UIListLayout_scanner = Instance.new("UIListLayout")
-UIListLayout_scanner.Padding = UDim.new(0.009999999776482582, 0)
-UIListLayout_scanner.SortOrder = Enum.SortOrder.LayoutOrder
-UIListLayout_scanner.Parent = scannerTabFrame
+local scannerLayout = Instance.new("UIListLayout")
+scannerLayout.Padding = UDim.new(0.01, 0)
+scannerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+scannerLayout.Parent = scannerTabFrame
 
 local listenerTabFrame = Instance.new("ScrollingFrame")
 listenerTabFrame.Visible = false
@@ -154,17 +161,17 @@ listenerTabFrame.Size = UDim2.new(0, 489, 0, 286)
 listenerTabFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 listenerTabFrame.Selectable = false
 listenerTabFrame.BackgroundTransparency = 1
-listenerTabFrame.Position = UDim2.new(0.5, 0, 0.5859708786010742, 0)
+listenerTabFrame.Position = UDim2.new(0.5, 0, 0.586, 0)
 listenerTabFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 listenerTabFrame.AutomaticCanvasSize = Enum.AutomaticSize.Y
 listenerTabFrame.BorderSizePixel = 0
 listenerTabFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 listenerTabFrame.Parent = mainbg
 
-local UIListLayout_listener = Instance.new("UIListLayout")
-UIListLayout_listener.Padding = UDim.new(0.009999999776482582, 0)
-UIListLayout_listener.SortOrder = Enum.SortOrder.LayoutOrder
-UIListLayout_listener.Parent = listenerTabFrame
+local listenerLayout = Instance.new("UIListLayout")
+listenerLayout.Padding = UDim.new(0.01, 0)
+listenerLayout.SortOrder = Enum.SortOrder.LayoutOrder
+listenerLayout.Parent = listenerTabFrame
 
 local actionTabFrame = Instance.new("Frame")
 actionTabFrame.ClipsDescendants = true
@@ -172,57 +179,59 @@ actionTabFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
 actionTabFrame.AnchorPoint = Vector2.new(0.5, 0.5)
 actionTabFrame.Name = "actionTabFrame"
 actionTabFrame.BackgroundTransparency = 1
-actionTabFrame.Position = UDim2.new(0.5, 0, 0.5859708786010742, 0)
+actionTabFrame.Position = UDim2.new(0.5, 0, 0.586, 0)
 actionTabFrame.SelectionGroup = true
 actionTabFrame.Size = UDim2.new(0, 489, 0, 286)
 actionTabFrame.BorderSizePixel = 0
 actionTabFrame.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 actionTabFrame.Parent = mainbg
 
--- Input field
-local grferge = Instance.new("Frame")
-grferge.Active = true
-grferge.Selectable = true
-grferge.BackgroundTransparency = 0.75
-grferge.Name = "grferge"
-grferge.Size = UDim2.new(0, 464, 0, 27)
-grferge.Position = UDim2.new(0.5, 0, 0.09, 0)
-grferge.AnchorPoint = Vector2.new(0.5, 0.5)
-grferge.BorderColor3 = Color3.fromRGB(0, 0, 0)
-grferge.BorderSizePixel = 0
-grferge.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
-grferge.Parent = actionTabFrame
+-- === Элементы вкладки Action ===
 
-local UICorner_input = Instance.new("UICorner")
-UICorner_input.CornerRadius = UDim.new(0, 6)
-UICorner_input.Parent = grferge
+-- Поле ввода ID
+local inputFrame = Instance.new("Frame")
+inputFrame.Active = true
+inputFrame.Selectable = true
+inputFrame.BackgroundTransparency = 0.75
+inputFrame.Name = "inputFrame"
+inputFrame.Size = UDim2.new(0, 464, 0, 27)
+inputFrame.Position = UDim2.new(0.5, 0, 0.09, 0)
+inputFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+inputFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
+inputFrame.BorderSizePixel = 0
+inputFrame.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
+inputFrame.Parent = actionTabFrame
 
-local UIStroke_input = Instance.new("UIStroke")
-UIStroke_input.Color = Color3.fromRGB(154, 154, 154)
-UIStroke_input.BorderStrokePosition = Enum.BorderStrokePosition.Inner
-UIStroke_input.Parent = grferge
+local cornerInput = Instance.new("UICorner")
+cornerInput.CornerRadius = UDim.new(0, 6)
+cornerInput.Parent = inputFrame
 
-local UIGradient_input = Instance.new("UIGradient")
-UIGradient_input.Rotation = -90
-UIGradient_input.Color = ColorSequence.new{
+local strokeInput = Instance.new("UIStroke")
+strokeInput.Color = Color3.fromRGB(154, 154, 154)
+strokeInput.BorderStrokePosition = Enum.BorderStrokePosition.Inner
+strokeInput.Parent = inputFrame
+
+local gradInput = Instance.new("UIGradient")
+gradInput.Rotation = -90
+gradInput.Color = ColorSequence.new{
     ColorSequenceKeypoint.new(0, Color3.fromRGB(163, 163, 163)),
     ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
 }
-UIGradient_input.Parent = grferge
+gradInput.Parent = inputFrame
 
 local ProductIDInput = Instance.new("TextBox")
 ProductIDInput.CursorPosition = -1
-ProductIDInput.Active = true   -- теперь активен для ввода
+ProductIDInput.Active = true
 ProductIDInput.Selectable = true
 ProductIDInput.AnchorPoint = Vector2.new(0.5, 0.5)
-ProductIDInput.PlaceholderText = "Product ID (e.g., 1, 5-10)"
+ProductIDInput.PlaceholderText = "ID (e.g., 1, 5-10)"
 ProductIDInput.TextSize = 14
 ProductIDInput.Size = UDim2.new(0, 420, 0, 15)
 ProductIDInput.TextColor3 = Color3.fromRGB(255, 201, 37)
 ProductIDInput.BorderColor3 = Color3.fromRGB(0, 0, 0)
 ProductIDInput.Text = ""
 ProductIDInput.Name = "ProductIDInput"
-ProductIDInput.Position = UDim2.new(0.514008641242981, 0, 0.5, 0)
+ProductIDInput.Position = UDim2.new(0.514, 0, 0.5, 0)
 ProductIDInput.BorderSizePixel = 0
 ProductIDInput.FontFace = Font.new("rbxasset://fonts/families/Inconsolata.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
 ProductIDInput.BackgroundTransparency = 1
@@ -231,30 +240,31 @@ ProductIDInput.TextWrapped = true
 ProductIDInput.ClearTextOnFocus = false
 ProductIDInput.TextScaled = true
 ProductIDInput.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-ProductIDInput.Parent = grferge
+ProductIDInput.Parent = inputFrame
 
-local Ico_input = Instance.new("ImageLabel")
-Ico_input.BorderColor3 = Color3.fromRGB(0, 0, 0)
-Ico_input.Name = "Ico"
-Ico_input.Size = UDim2.new(0, 15, 0, 15)
-Ico_input.Position = UDim2.new(0.033943966031074524, 0, 0.5, 0)
-Ico_input.AnchorPoint = Vector2.new(0.5, 0.5)
-Ico_input.Image = "rbxassetid://16167590360"
-Ico_input.BackgroundTransparency = 1
-Ico_input.ImageRectSize = Vector2.new(16, 16)
-Ico_input.ImageRectOffset = Vector2.new(253, 492)
-Ico_input.BorderSizePixel = 0
-Ico_input.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-Ico_input.Parent = grferge
+local iconInput = Instance.new("ImageLabel")
+iconInput.BorderColor3 = Color3.fromRGB(0, 0, 0)
+iconInput.Name = "Ico"
+iconInput.Size = UDim2.new(0, 15, 0, 15)
+iconInput.Position = UDim2.new(0.034, 0, 0.5, 0)
+iconInput.AnchorPoint = Vector2.new(0.5, 0.5)
+iconInput.Image = "rbxassetid://16167590360"
+iconInput.BackgroundTransparency = 1
+iconInput.ImageRectSize = Vector2.new(16, 16)
+iconInput.ImageRectOffset = Vector2.new(253, 492)
+iconInput.BorderSizePixel = 0
+iconInput.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+iconInput.Parent = inputFrame
 
+-- Предупреждение
 local Warn = Instance.new("TextLabel")
 Warn.TextWrapped = true
 Warn.Name = "Warn"
 Warn.TextColor3 = Color3.fromRGB(255, 53, 53)
 Warn.BorderColor3 = Color3.fromRGB(0, 0, 0)
-Warn.Text = "! This won't actually purchase the product, This just fakes it."
+Warn.Text = "! This won't actually purchase the product, just fakes it."
 Warn.Size = UDim2.new(0, 448, 0, 15)
-Warn.Position = UDim2.new(0.45807769894599915, 0, 0.13062931597232819, 0)
+Warn.Position = UDim2.new(0.5, 0, 0.22, 0)
 Warn.AnchorPoint = Vector2.new(0.5, 0.5)
 Warn.BorderSizePixel = 0
 Warn.BackgroundTransparency = 1
@@ -265,7 +275,7 @@ Warn.TextSize = 14
 Warn.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 Warn.Parent = actionTabFrame
 
--- Action buttons container
+-- Контейнер для кнопок (горизонтальный ряд)
 local btnContainer = Instance.new("Frame")
 btnContainer.Size = UDim2.new(0, 464, 0, 40)
 btnContainer.Position = UDim2.new(0.5, 0, 0.5, 0)
@@ -282,7 +292,8 @@ btnLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 btnLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 btnLayout.Parent = btnContainer
 
-local function createActionButton(parent, text, callback)
+-- Функция создания кнопок действия
+local function createActionButton(parent, text)
     local btn = Instance.new("ImageButton")
     btn.Size = UDim2.new(0, 110, 0, 30)
     btn.ImageTransparency = 1
@@ -324,28 +335,24 @@ local function createActionButton(parent, text, callback)
     label.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     label.Parent = btn
 
-    if callback then
-        btn.MouseButton1Click:Connect(callback)
-    end
     return btn
 end
 
-local HookBtn = createActionButton(btnContainer, "Product", nil)
-local GamepassBtn = createActionButton(btnContainer, "Gamepass", nil)
-local BulkBtn = createActionButton(btnContainer, "Bulk", nil)
-local PurchaseBtn = createActionButton(btnContainer, "Purchase", nil)
+local HookBtn = createActionButton(btnContainer, "Product")
+local GamepassBtn = createActionButton(btnContainer, "Gamepass")
+local BulkBtn = createActionButton(btnContainer, "Bulk")
+local PurchaseBtn = createActionButton(btnContainer, "Purchase")
 
--- Services
+-- === Сервисы ===
 local UIS = game:GetService("UserInputService")
 local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local StarterGui = game:GetService("StarterGui")
 
--- Drag
+-- === Drag (перетаскивание окна) ===
 function dragify(Frame)
     local dragToggle = nil
-    local dragSpeed = 0.15
     local dragInput = nil
     local dragStart = nil
     local startPos = nil
@@ -389,11 +396,8 @@ function dragify(Frame)
 end
 dragify(mainbg)
 
--- ==========================
--- SCANNER: загрузка продуктов
--- ==========================
+-- === Загрузка продуктов для Scanner ===
 local function fetchDevProducts()
-    -- Очищаем всё, кроме UIListLayout
     for _, child in ipairs(scannerTabFrame:GetChildren()) do
         if not child:IsA("UIListLayout") then
             child:Destroy()
@@ -450,14 +454,13 @@ local function fetchDevProducts()
 
         btn.MouseButton1Click:Connect(function()
             ProductIDInput.Text = tostring(product.ProductId)
-            -- Переключиться на вкладку Action
+            -- Переключиться на Action
             ScanTab.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
             ListenerTab.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
             ActionTab.BackgroundColor3 = Color3.fromRGB(104, 123, 165)
             scannerTabFrame.Visible = false
             listenerTabFrame.Visible = false
             actionTabFrame.Visible = true
-            -- Уведомление
             pcall(function()
                 StarterGui:SetCore("SendNotification", {
                     Title = "ID Set",
@@ -470,7 +473,7 @@ local function fetchDevProducts()
 
     if count == 0 then
         local label = Instance.new("TextLabel")
-        label.Text = "No Developer Products found in this game"
+        label.Text = "No Developer Products found"
         label.TextColor3 = Color3.fromRGB(255, 255, 0)
         label.Size = UDim2.new(0, 400, 0, 30)
         label.Position = UDim2.new(0.5, 0, 0.5, 0)
@@ -482,19 +485,14 @@ local function fetchDevProducts()
     end
 end
 
--- ==========================
--- Tabs Handler (с обновлением Scanner)
--- ==========================
+-- === Переключение вкладок ===
 ScanTab.MouseButton1Click:Connect(function()
     ScanTab.BackgroundColor3 = Color3.fromRGB(104, 123, 165)
     ListenerTab.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
     ActionTab.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
-
     scannerTabFrame.Visible = true
     listenerTabFrame.Visible = false
     actionTabFrame.Visible = false
-
-    -- Обновляем список продуктов при каждом переходе на Scanner
     task.spawn(fetchDevProducts)
 end)
 
@@ -502,7 +500,6 @@ ListenerTab.MouseButton1Click:Connect(function()
     ScanTab.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
     ListenerTab.BackgroundColor3 = Color3.fromRGB(104, 123, 165)
     ActionTab.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
-
     scannerTabFrame.Visible = false
     listenerTabFrame.Visible = true
     actionTabFrame.Visible = false
@@ -512,22 +509,19 @@ ActionTab.MouseButton1Click:Connect(function()
     ScanTab.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
     ListenerTab.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
     ActionTab.BackgroundColor3 = Color3.fromRGB(104, 123, 165)
-
     scannerTabFrame.Visible = false
     listenerTabFrame.Visible = false
     actionTabFrame.Visible = true
 end)
 
--- По умолчанию показываем Scanner и загружаем продукты
+-- По умолчанию показываем Scanner
 ScanTab.BackgroundColor3 = Color3.fromRGB(104, 123, 165)
 scannerTabFrame.Visible = true
 listenerTabFrame.Visible = false
 actionTabFrame.Visible = false
 task.spawn(fetchDevProducts)
 
--- ==========================
--- Обработчики кнопок Action
--- ==========================
+-- === Вспомогательные функции для Action ===
 local function sendNotification(title, text, duration)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
@@ -561,7 +555,7 @@ local function parseIDs(input)
     return ids
 end
 
-local function handleSignal(signalFunc, signalName, isBulk)
+local function handleSignal(signalFunc, signalName)
     local inputText = ProductIDInput.Text
     if inputText == "" then
         sendNotification("Error", "Enter at least one Product ID", 3)
@@ -573,39 +567,30 @@ local function handleSignal(signalFunc, signalName, isBulk)
         return
     end
 
-    local count = 1
-    if isBulk then
-        -- для Bulk можно использовать количество, но пока просто 1
-        -- можно добавить поле для количества, но для простоты оставим 1
-        count = 1
-    end
-
-    for i = 1, count do
-        for _, productID in ipairs(ids) do
-            task.wait(math.random(50, 200) / 100)
-            local success = false
-            local attempt = 0
-            while not success and attempt < 3 do
-                attempt = attempt + 1
-                local ok, err = pcall(signalFunc,
-                    signalName == "Gamepass" and LocalPlayer or LocalPlayer.UserId,
-                    productID,
-                    true
-                )
-                if ok then
-                    success = true
-                else
-                    warn(string.format("Attempt %d failed for ID %d: %s", attempt, productID, err))
-                    if attempt < 3 then
-                        task.wait(math.random(attempt * 10, attempt * 20) / 10)
-                    end
+    for _, productID in ipairs(ids) do
+        task.wait(math.random(50, 200) / 100)
+        local success = false
+        local attempt = 0
+        while not success and attempt < 3 do
+            attempt = attempt + 1
+            local ok, err = pcall(signalFunc,
+                signalName == "Gamepass" and LocalPlayer or LocalPlayer.UserId,
+                productID,
+                true
+            )
+            if ok then
+                success = true
+            else
+                warn(string.format("Attempt %d failed for ID %d: %s", attempt, productID, err))
+                if attempt < 3 then
+                    task.wait(math.random(attempt * 10, attempt * 20) / 10)
                 end
             end
-            if success then
-                sendNotification("Purchase Faked", "Faked ID " .. productID, 2)
-            else
-                sendNotification("Error", "Failed to fake ID " .. productID, 3)
-            end
+        end
+        if success then
+            sendNotification("Purchase Faked", "Faked ID " .. productID, 2)
+        else
+            sendNotification("Error", "Failed to fake ID " .. productID, 3)
         end
     end
 end
@@ -613,30 +598,28 @@ end
 HookBtn.MouseButton1Click:Connect(function()
     handleSignal(function(uid, pid, success)
         MarketplaceService:SignalPromptProductPurchaseFinished(uid, pid, success)
-    end, "Product", false)
+    end, "Product")
 end)
 
 GamepassBtn.MouseButton1Click:Connect(function()
     handleSignal(function(player, pid, success)
         MarketplaceService:SignalPromptGamePassPurchaseFinished(player, pid, success)
-    end, "Gamepass", false)
+    end, "Gamepass")
 end)
 
 BulkBtn.MouseButton1Click:Connect(function()
     handleSignal(function(uid, pid, success)
         MarketplaceService:SignalPromptBulkPurchaseFinished(uid, pid, success)
-    end, "Bulk", true)
+    end, "Bulk")
 end)
 
 PurchaseBtn.MouseButton1Click:Connect(function()
     handleSignal(function(uid, pid, success)
         MarketplaceService:SignalPromptPurchaseFinished(uid, pid, success)
-    end, "Purchase", false)
+    end, "Purchase")
 end)
 
--- ==========================
--- Логирование
--- ==========================
+-- === Логирование ===
 function addLog(pName, purchasedId, wasPurchased)
     local Response = Instance.new("Frame")
     Response.Active = true
@@ -649,176 +632,143 @@ function addLog(pName, purchasedId, wasPurchased)
     Response.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
     Response.Parent = listenerTabFrame
 
-    local UICorner = Instance.new("UICorner")
-    UICorner.CornerRadius = UDim.new(0, 6)
-    UICorner.Parent = Response
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 6)
+    corner.Parent = Response
 
-    local UIStroke = Instance.new("UIStroke")
-    UIStroke.Color = Color3.fromRGB(154, 154, 154)
-    UIStroke.BorderStrokePosition = Enum.BorderStrokePosition.Inner
-    UIStroke.Parent = Response
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(154, 154, 154)
+    stroke.BorderStrokePosition = Enum.BorderStrokePosition.Inner
+    stroke.Parent = Response
 
-    local ProductName = Instance.new("TextLabel")
-    ProductName.TextWrapped = true
-    ProductName.Name = "ProductName"
-    ProductName.TextColor3 = Color3.fromRGB(255, 255, 255)
-    ProductName.BorderColor3 = Color3.fromRGB(0, 0, 0)
-    ProductName.Text = pName
-    ProductName.Size = UDim2.new(0, 300, 0, 15)
-    ProductName.Position = UDim2.new(0.34, 0, 0.375, 0)
-    ProductName.AnchorPoint = Vector2.new(0.5, 0.5)
-    ProductName.BorderSizePixel = 0
-    ProductName.BackgroundTransparency = 1
-    ProductName.TextXAlignment = Enum.TextXAlignment.Left
-    ProductName.TextScaled = true
-    ProductName.FontFace = Font.new("rbxasset://fonts/families/Inconsolata.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
-    ProductName.TextSize = 14
-    ProductName.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    ProductName.Parent = Response
-
-    local UIGradient = Instance.new("UIGradient")
-    UIGradient.Rotation = -90
-    UIGradient.Color = ColorSequence.new{
+    local gradient = Instance.new("UIGradient")
+    gradient.Rotation = -90
+    gradient.Color = ColorSequence.new{
         ColorSequenceKeypoint.new(0, Color3.fromRGB(163, 163, 163)),
         ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
     }
-    UIGradient.Parent = Response
+    gradient.Parent = Response
 
-    local ProductID = Instance.new("TextLabel")
-    ProductID.TextWrapped = true
-    ProductID.Name = "ProductID"
-    ProductID.TextColor3 = Color3.fromRGB(255, 201, 37)
-    ProductID.BorderColor3 = Color3.fromRGB(0, 0, 0)
-    ProductID.Text = tostring(purchasedId)
-    ProductID.Size = UDim2.new(0, 300, 0, 15)
-    ProductID.Position = UDim2.new(0.34, 0, 0.6875, 0)
-    ProductID.AnchorPoint = Vector2.new(0.5, 0.5)
-    ProductID.BorderSizePixel = 0
-    ProductID.BackgroundTransparency = 1
-    ProductID.TextXAlignment = Enum.TextXAlignment.Left
-    ProductID.TextScaled = true
-    ProductID.FontFace = Font.new("rbxasset://fonts/families/Inconsolata.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
-    ProductID.TextSize = 14
-    ProductID.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    ProductID.Parent = Response
+    local nameLabel = Instance.new("TextLabel")
+    nameLabel.TextWrapped = true
+    nameLabel.Name = "ProductName"
+    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nameLabel.BorderColor3 = Color3.fromRGB(0, 0, 0)
+    nameLabel.Text = pName
+    nameLabel.Size = UDim2.new(0, 300, 0, 15)
+    nameLabel.Position = UDim2.new(0.34, 0, 0.375, 0)
+    nameLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    nameLabel.BorderSizePixel = 0
+    nameLabel.BackgroundTransparency = 1
+    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+    nameLabel.TextScaled = true
+    nameLabel.FontFace = Font.new("rbxasset://fonts/families/Inconsolata.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    nameLabel.TextSize = 14
+    nameLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    nameLabel.Parent = Response
 
-    local OpenProduct = Instance.new("ImageButton")
-    OpenProduct.ImageTransparency = 1
-    OpenProduct.BorderColor3 = Color3.fromRGB(0, 0, 0)
-    OpenProduct.AnchorPoint = Vector2.new(0.5, 0.5)
-    OpenProduct.Name = "OpenProduct"
-    OpenProduct.Position = UDim2.new(0.948, 0, 0.5, 0)
-    OpenProduct.Size = UDim2.new(0, 30, 0, 30)
-    OpenProduct.BorderSizePixel = 0
-    OpenProduct.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
-    OpenProduct.Parent = Response
+    local idLabel = Instance.new("TextLabel")
+    idLabel.TextWrapped = true
+    idLabel.Name = "ProductID"
+    idLabel.TextColor3 = Color3.fromRGB(255, 201, 37)
+    idLabel.BorderColor3 = Color3.fromRGB(0, 0, 0)
+    idLabel.Text = tostring(purchasedId)
+    idLabel.Size = UDim2.new(0, 300, 0, 15)
+    idLabel.Position = UDim2.new(0.34, 0, 0.6875, 0)
+    idLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    idLabel.BorderSizePixel = 0
+    idLabel.BackgroundTransparency = 1
+    idLabel.TextXAlignment = Enum.TextXAlignment.Left
+    idLabel.TextScaled = true
+    idLabel.FontFace = Font.new("rbxasset://fonts/families/Inconsolata.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
+    idLabel.TextSize = 14
+    idLabel.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    idLabel.Parent = Response
 
-    local cornerOpen = Instance.new("UICorner")
-    cornerOpen.CornerRadius = UDim.new(0, 6)
-    cornerOpen.Parent = OpenProduct
+    -- Кнопка открытия (без функционала, просто для вида)
+    local openBtn = Instance.new("ImageButton")
+    openBtn.ImageTransparency = 1
+    openBtn.BorderColor3 = Color3.fromRGB(0, 0, 0)
+    openBtn.AnchorPoint = Vector2.new(0.5, 0.5)
+    openBtn.Name = "OpenProduct"
+    openBtn.Position = UDim2.new(0.948, 0, 0.5, 0)
+    openBtn.Size = UDim2.new(0, 30, 0, 30)
+    openBtn.BorderSizePixel = 0
+    openBtn.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
+    openBtn.Parent = Response
+    local c1 = Instance.new("UICorner"); c1.CornerRadius = UDim.new(0,6); c1.Parent = openBtn
+    local s1 = Instance.new("UIStroke"); s1.Color = Color3.fromRGB(154,154,154); s1.Parent = openBtn
+    local g1 = Instance.new("UIGradient"); g1.Rotation = -90; g1.Color = ColorSequence.new{ColorSequenceKeypoint.new(0, Color3.fromRGB(163,163,163)), ColorSequenceKeypoint.new(1, Color3.fromRGB(255,255,255))}; g1.Parent = openBtn
+    local icoOpen = Instance.new("ImageLabel")
+    icoOpen.ImageColor3 = Color3.fromRGB(197,197,197)
+    icoOpen.BorderColor3 = Color3.fromRGB(0,0,0)
+    icoOpen.Name = "Ico"
+    icoOpen.Size = UDim2.new(0,18,0,18)
+    icoOpen.Position = UDim2.new(0.5,0,0.5,0)
+    icoOpen.AnchorPoint = Vector2.new(0.5,0.5)
+    icoOpen.Image = "rbxassetid://16884179279"
+    icoOpen.BackgroundTransparency = 1
+    icoOpen.ImageRectSize = Vector2.new(48,48)
+    icoOpen.ImageRectOffset = Vector2.new(690,702)
+    icoOpen.BorderSizePixel = 0
+    icoOpen.BackgroundColor3 = Color3.fromRGB(255,255,255)
+    icoOpen.Parent = openBtn
 
-    local strokeOpen = Instance.new("UIStroke")
-    strokeOpen.Color = Color3.fromRGB(154, 154, 154)
-    strokeOpen.Parent = OpenProduct
+    -- Кнопка копирования ID
+    local copyBtn = Instance.new("ImageButton")
+    copyBtn.ImageTransparency = 1
+    copyBtn.BorderColor3 = Color3.fromRGB(0, 0, 0)
+    copyBtn.AnchorPoint = Vector2.new(0.5, 0.5)
+    copyBtn.Name = "CopyID"
+    copyBtn.Position = UDim2.new(0.871, 0, 0.5, 0)
+    copyBtn.Size = UDim2.new(0, 30, 0, 30)
+    copyBtn.BorderSizePixel = 0
+    copyBtn.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
+    copyBtn.Parent = Response
+    local c2 = Instance.new("UICorner"); c2.CornerRadius = UDim.new(0,6); c2.Parent = copyBtn
+    local s2 = Instance.new("UIStroke"); s2.Color = Color3.fromRGB(154,154,154); s2.Parent = copyBtn
+    local g2 = Instance.new("UIGradient"); g2.Rotation = -90; g2.Color = ColorSequence.new{ColorSequenceKeypoint.new(0, Color3.fromRGB(163,163,163)), ColorSequenceKeypoint.new(1, Color3.fromRGB(255,255,255))}; g2.Parent = copyBtn
+    local icoCopy = Instance.new("ImageLabel")
+    icoCopy.ImageColor3 = Color3.fromRGB(197,197,197)
+    icoCopy.BorderColor3 = Color3.fromRGB(0,0,0)
+    icoCopy.Name = "Ico"
+    icoCopy.Size = UDim2.new(0,26,0,26)
+    icoCopy.AnchorPoint = Vector2.new(0.5,0.5)
+    icoCopy.Image = "rbxassetid://16884178261"
+    icoCopy.BackgroundTransparency = 1
+    icoCopy.ImageRectSize = Vector2.new(36,36)
+    icoCopy.Position = UDim2.new(0.5,0,0.5,0)
+    icoCopy.BorderSizePixel = 0
+    icoCopy.BackgroundColor3 = Color3.fromRGB(255,255,255)
+    icoCopy.Parent = copyBtn
 
-    local gradOpen = Instance.new("UIGradient")
-    gradOpen.Rotation = -90
-    gradOpen.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(163, 163, 163)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
-    }
-    gradOpen.Parent = OpenProduct
-
-    local IcoOpen = Instance.new("ImageLabel")
-    IcoOpen.ImageColor3 = Color3.fromRGB(197, 197, 197)
-    IcoOpen.BorderColor3 = Color3.fromRGB(0, 0, 0)
-    IcoOpen.Name = "Ico"
-    IcoOpen.Size = UDim2.new(0, 18, 0, 18)
-    IcoOpen.Position = UDim2.new(0.5, 0, 0.5, 0)
-    IcoOpen.AnchorPoint = Vector2.new(0.5, 0.5)
-    IcoOpen.Image = "rbxassetid://16884179279"
-    IcoOpen.BackgroundTransparency = 1
-    IcoOpen.ImageRectSize = Vector2.new(48, 48)
-    IcoOpen.ImageRectOffset = Vector2.new(690, 702)
-    IcoOpen.BorderSizePixel = 0
-    IcoOpen.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    IcoOpen.Parent = OpenProduct
-
-    local CopyID = Instance.new("ImageButton")
-    CopyID.ImageTransparency = 1
-    CopyID.BorderColor3 = Color3.fromRGB(0, 0, 0)
-    CopyID.AnchorPoint = Vector2.new(0.5, 0.5)
-    CopyID.Name = "CopyID"
-    CopyID.Position = UDim2.new(0.871, 0, 0.5, 0)
-    CopyID.Size = UDim2.new(0, 30, 0, 30)
-    CopyID.BorderSizePixel = 0
-    CopyID.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
-    CopyID.Parent = Response
-
-    local cornerCopy = Instance.new("UICorner")
-    cornerCopy.CornerRadius = UDim.new(0, 6)
-    cornerCopy.Parent = CopyID
-
-    local strokeCopy = Instance.new("UIStroke")
-    strokeCopy.Color = Color3.fromRGB(154, 154, 154)
-    strokeCopy.Parent = CopyID
-
-    local gradCopy = Instance.new("UIGradient")
-    gradCopy.Rotation = -90
-    gradCopy.Color = ColorSequence.new{
-        ColorSequenceKeypoint.new(0, Color3.fromRGB(163, 163, 163)),
-        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
-    }
-    gradCopy.Parent = CopyID
-
-    local IcoCopy = Instance.new("ImageLabel")
-    IcoCopy.ImageColor3 = Color3.fromRGB(197, 197, 197)
-    IcoCopy.BorderColor3 = Color3.fromRGB(0, 0, 0)
-    IcoCopy.Name = "Ico"
-    IcoCopy.Size = UDim2.new(0, 26, 0, 26)
-    IcoCopy.AnchorPoint = Vector2.new(0.5, 0.5)
-    IcoCopy.Image = "rbxassetid://16884178261"
-    IcoCopy.BackgroundTransparency = 1
-    IcoCopy.ImageRectSize = Vector2.new(36, 36)
-    IcoCopy.Position = UDim2.new(0.5, 0, 0.5, 0)
-    IcoCopy.BorderSizePixel = 0
-    IcoCopy.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    IcoCopy.Parent = CopyID
-
-    CopyID.MouseButton1Click:Connect(function()
+    copyBtn.MouseButton1Click:Connect(function()
         pcall(function()
             setclipboard(tostring(purchasedId))
-            sendNotification("Copied", "ID copied to clipboard", 2)
+            sendNotification("Copied", "ID copied", 2)
         end)
     end)
 
-    -- Ограничиваем количество логов
     while #listenerTabFrame:GetChildren() > 100 do
         listenerTabFrame:GetChildren()[1]:Destroy()
     end
 end
 
--- ==========================
--- Слушатели событий
--- ==========================
+-- === Слушатели событий Marketplace ===
 MarketplaceService.PromptProductPurchaseFinished:Connect(function(player, purchasedId, wasPurchased)
-    print("Hook triggered for product:", purchasedId)
     addLog(LocalPlayer.Name, purchasedId, wasPurchased)
 end)
 
 MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, gamePassId, wasPurchased)
-    print("Hook triggered for gamepass:", gamePassId)
     addLog(LocalPlayer.Name, gamePassId, wasPurchased)
 end)
 
 MarketplaceService.PromptBulkPurchaseFinished:Connect(function(userId, productId, wasPurchased)
-    print("Hook triggered for bulk:", productId)
     addLog(LocalPlayer.Name, productId, wasPurchased)
 end)
 
 MarketplaceService.PromptPurchaseFinished:Connect(function(userId, productId, wasPurchased)
-    print("Hook triggered for purchase:", productId)
     addLog(LocalPlayer.Name, productId, wasPurchased)
 end)
 
-print("Product Faker loaded. Scanner now works and auto-fills IDs.")
+print("Product Faker loaded. Action tab fixed, window scaled down, all elements arranged.")
