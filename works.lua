@@ -31,6 +31,7 @@ local function makeLabel(parent, text, size, position, props)
     return lbl
 end
 
+-- ИСПРАВЛЕННАЯ ФУНКЦИЯ makeButton (текст теперь всегда по центру)
 local function makeButton(parent, size, position, text, callback)
     local btn = Instance.new("ImageButton")
     btn.ImageTransparency = 1
@@ -58,8 +59,11 @@ local function makeButton(parent, size, position, text, callback)
     }
     gradient.Parent = btn
 
-    local lbl = makeLabel(btn, text, UDim2.new(0, 84, 0, 15), UDim2.new(0.5, 0, 0.5, 0))
+    -- Лейбл теперь занимает всю кнопку с отступами, текст всегда по центру
+    local lbl = makeLabel(btn, text, UDim2.new(1, -10, 1, -4), UDim2.new(0.5, 0, 0.5, 0))
     lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    lbl.TextScaled = true
+    lbl.FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
 
     if callback then
         btn.MouseButton1Click:Connect(callback)
@@ -151,7 +155,9 @@ styleButton(ListenerTab)
 local ActionTab = makeButton(tabBar, UDim2.new(0, 100, 0, 24), nil, "Action")
 styleButton(ActionTab)
 
--- Контейнер для вкладки Scanner
+-- ==========================
+--  КОНТЕЙНЕР ВКЛАДКИ SCANNER (с внутренним контейнером для продуктов)
+-- ==========================
 local scannerTabFrame = Instance.new("ScrollingFrame")
 scannerTabFrame.Visible = true
 scannerTabFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -167,12 +173,21 @@ scannerTabFrame.BorderSizePixel = 0
 scannerTabFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
 scannerTabFrame.Parent = mainbg
 
+-- Внутренний контейнер для продуктов (будет полностью очищаться при обновлении)
+local productContainer = Instance.new("Frame")
+productContainer.Size = UDim2.new(1, 0, 0, 0)
+productContainer.BackgroundTransparency = 1
+productContainer.AutomaticSize = Enum.AutomaticSize.Y
+productContainer.Parent = scannerTabFrame
+
 local scannerLayout = Instance.new("UIListLayout")
 scannerLayout.Padding = UDim.new(0.01, 0)
 scannerLayout.SortOrder = Enum.SortOrder.LayoutOrder
-scannerLayout.Parent = scannerTabFrame
+scannerLayout.Parent = productContainer
 
--- Контейнер для вкладки Listener
+-- ==========================
+--  КОНТЕЙНЕР ВКЛАДКИ LISTENER
+-- ==========================
 local listenerTabFrame = Instance.new("ScrollingFrame")
 listenerTabFrame.Visible = false
 listenerTabFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -193,7 +208,9 @@ listenerLayout.Padding = UDim.new(0.01, 0)
 listenerLayout.SortOrder = Enum.SortOrder.LayoutOrder
 listenerLayout.Parent = listenerTabFrame
 
--- Контейнер для вкладки Action
+-- ==========================
+--  КОНТЕЙНЕР ВКЛАДКИ ACTION
+-- ==========================
 local actionTabFrame = Instance.new("Frame")
 actionTabFrame.ClipsDescendants = true
 actionTabFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -415,12 +432,12 @@ end)
 selectTab("Scanner") -- стартовая вкладка
 
 -- ==========================
---  СКАНЕР ПРОДУКТОВ
+--  СКАНЕР ПРОДУКТОВ (исправлен)
 -- ==========================
 local function fetchDevProducts()
-    -- Очищаем старые элементы, но оставляем лейблы-заглушки (если есть)
-    for _, child in ipairs(scannerTabFrame:GetChildren()) do
-        if child:IsA("ImageButton") then
+    -- Полная очистка внутреннего контейнера
+    for _, child in ipairs(productContainer:GetChildren()) do
+        if child:IsA("ImageButton") or child:IsA("TextLabel") then
             child:Destroy()
         end
     end
@@ -430,7 +447,7 @@ local function fetchDevProducts()
     end)
 
     if not success or not products then
-        makeLabel(scannerTabFrame, "Failed to load products", UDim2.new(0, 400, 0, 30), UDim2.new(0.5, 0, 0.5, 0), {
+        makeLabel(productContainer, "Failed to load products", UDim2.new(0, 400, 0, 30), UDim2.new(0.5, 0, 0.5, 0), {
             TextColor3 = Color3.fromRGB(255, 0, 0),
             AnchorPoint = Vector2.new(0.5, 0.5),
             TextScaled = true
@@ -446,7 +463,7 @@ local function fetchDevProducts()
         btn.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
         btn.BackgroundTransparency = 0.75
         btn.BorderSizePixel = 0
-        btn.Parent = scannerTabFrame
+        btn.Parent = productContainer
 
         local corner = Instance.new("UICorner")
         corner.CornerRadius = UDim.new(0, 6)
@@ -472,7 +489,7 @@ local function fetchDevProducts()
     end
 
     if count == 0 then
-        makeLabel(scannerTabFrame, "No Developer Products found in this game", UDim2.new(0, 400, 0, 30), UDim2.new(0.5, 0, 0.5, 0), {
+        makeLabel(productContainer, "No Developer Products found in this game", UDim2.new(0, 400, 0, 30), UDim2.new(0.5, 0, 0.5, 0), {
             TextColor3 = Color3.fromRGB(255, 255, 0),
             AnchorPoint = Vector2.new(0.5, 0.5),
             TextScaled = true
@@ -568,15 +585,16 @@ function addLog(playerName, productId, wasPurchased, price)
     local timeStr = os.date("%H:%M:%S")
     local status = wasPurchased and "✅" or "❌"
 
+    -- Увеличена ширина лейблов, чтобы текст не перекрывал кнопки
     local nameLabel = makeLabel(Response, string.format("[%s] %s %s", timeStr, playerName, status),
-        UDim2.new(0, 287, 0, 15), UDim2.new(0.340, 0, 0.375, 0), {
+        UDim2.new(0, 350, 0, 15), UDim2.new(0.340, 0, 0.375, 0), {
             TextXAlignment = Enum.TextXAlignment.Left,
             AnchorPoint = Vector2.new(0.5, 0.5),
             FontFace = Font.new("rbxasset://fonts/families/Inconsolata.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
         })
 
     local idLabel = makeLabel(Response, string.format("ID: %d | Price: %d", productId, price or 0),
-        UDim2.new(0, 287, 0, 15), UDim2.new(0.340, 0, 0.688, 0), {
+        UDim2.new(0, 350, 0, 15), UDim2.new(0.340, 0, 0.688, 0), {
             TextColor3 = Color3.fromRGB(255, 201, 37),
             TextXAlignment = Enum.TextXAlignment.Left,
             AnchorPoint = Vector2.new(0.5, 0.5),
