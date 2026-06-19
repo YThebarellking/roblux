@@ -1,6 +1,5 @@
 -- Product Purchase Faker
--- Improved code quality without changing functionality
--- All enhancements are internal (caching, DRY, cleanup)
+-- Improved with Scanner functionality and bug fixes
 
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
@@ -42,7 +41,6 @@ local function makeButton(parent, size, position, text, callback)
     if position then btn.Position = position end
     btn.Parent = parent
 
-    -- стилизация
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 6)
     corner.Parent = btn
@@ -60,7 +58,6 @@ local function makeButton(parent, size, position, text, callback)
     }
     gradient.Parent = btn
 
-    -- текст внутри
     local lbl = makeLabel(btn, text, UDim2.new(0, 84, 0, 15), UDim2.new(0.5, 0, 0.5, 0))
     lbl.TextColor3 = Color3.fromRGB(255, 255, 255)
 
@@ -82,7 +79,7 @@ local function makeFrame(parent, size, position, transparent)
     return fr
 end
 
-local function styleButton(btn) -- для уже созданных кнопок
+local function styleButton(btn)
     local corner = Instance.new("UICorner")
     corner.CornerRadius = UDim.new(0, 6)
     corner.Parent = btn
@@ -125,7 +122,6 @@ local strokeMain = Instance.new("UIStroke")
 strokeMain.Color = Color3.fromRGB(154, 154, 154)
 strokeMain.Parent = mainbg
 
--- Кнопка закрытия
 local CloseBtn = Instance.new("ImageButton")
 CloseBtn.Size = UDim2.new(0, 24, 0, 24)
 CloseBtn.Position = UDim2.new(1, -30, 0, 6)
@@ -136,14 +132,12 @@ CloseBtn.MouseButton1Click:Connect(function()
     mainbg.Visible = false
 end)
 
--- Заголовок
 makeLabel(mainbg, "Product Fucker", UDim2.new(0, 197, 0, 19), UDim2.new(0.025, 0, 0.032, 0), {
     TextXAlignment = Enum.TextXAlignment.Left,
     TextScaled = true,
     FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
 })
 
--- Панель вкладок
 local tabBar = makeFrame(mainbg, UDim2.new(0, 489, 0, 24), UDim2.new(0.5, 0, 0.143, 0), true)
 tabBar.AnchorPoint = Vector2.new(0.5, 0.5)
 
@@ -153,9 +147,8 @@ tabLayout.SortOrder = Enum.SortOrder.LayoutOrder
 tabLayout.FillDirection = Enum.FillDirection.Horizontal
 tabLayout.Parent = tabBar
 
--- Создаём вкладки
 local ScanTab = makeButton(tabBar, UDim2.new(0, 100, 0, 24), nil, "Scanner")
-ScanTab.BackgroundColor3 = Color3.fromRGB(104, 123, 165) -- активная по умолчанию
+ScanTab.BackgroundColor3 = Color3.fromRGB(104, 123, 165)
 styleButton(ScanTab)
 
 local ListenerTab = makeButton(tabBar, UDim2.new(0, 100, 0, 24), nil, "Listener")
@@ -164,9 +157,9 @@ styleButton(ListenerTab)
 local ActionTab = makeButton(tabBar, UDim2.new(0, 100, 0, 24), nil, "Action")
 styleButton(ActionTab)
 
--- Контейнеры для вкладок
+-- Контейнер для вкладки Scanner
 local scannerTabFrame = Instance.new("ScrollingFrame")
-scannerTabFrame.Visible = false
+scannerTabFrame.Visible = true
 scannerTabFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
 scannerTabFrame.Name = "scannerTabFrame"
 scannerTabFrame.Size = UDim2.new(0, 489, 0, 286)
@@ -185,6 +178,7 @@ scannerLayout.Padding = UDim.new(0.01, 0)
 scannerLayout.SortOrder = Enum.SortOrder.LayoutOrder
 scannerLayout.Parent = scannerTabFrame
 
+-- Контейнер для вкладки Listener
 local listenerTabFrame = Instance.new("ScrollingFrame")
 listenerTabFrame.Visible = false
 listenerTabFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -205,6 +199,7 @@ listenerLayout.Padding = UDim.new(0.01, 0)
 listenerLayout.SortOrder = Enum.SortOrder.LayoutOrder
 listenerLayout.Parent = listenerTabFrame
 
+-- Контейнер для вкладки Action
 local actionTabFrame = Instance.new("Frame")
 actionTabFrame.ClipsDescendants = true
 actionTabFrame.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -284,7 +279,6 @@ iconInput.BorderSizePixel = 0
 iconInput.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 iconInput.Parent = inputFrame
 
--- Предупреждение
 makeLabel(actionTabFrame, "! This won't actually purchase the product, This just fakes it.", UDim2.new(0, 448, 0, 15), UDim2.new(0.458, 0, 0.131, 0), {
     TextColor3 = Color3.fromRGB(255, 53, 53),
     TextXAlignment = Enum.TextXAlignment.Left,
@@ -292,7 +286,6 @@ makeLabel(actionTabFrame, "! This won't actually purchase the product, This just
     FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Bold, Enum.FontStyle.Normal)
 })
 
--- Поле для количества (Bulk)
 local CountInput = Instance.new("TextBox")
 CountInput.Size = UDim2.new(0, 60, 0, 20)
 CountInput.Position = UDim2.new(0.75, 0, 0.54, 0)
@@ -310,7 +303,7 @@ local cornerCount = Instance.new("UICorner")
 cornerCount.CornerRadius = UDim.new(0, 4)
 cornerCount.Parent = CountInput
 
--- Кнопки действий (создаём через makeButton, но позиции задаём вручную)
+-- Кнопки действий с правильными координатами
 local btnPosY = 0.104
 local btnWidth = 121
 local btnHeight = 29
@@ -320,10 +313,10 @@ local function createActionButton(text, xOffset, callback)
     return btn
 end
 
-local HookBtn = createActionButton("Signal Product", 0, nil)
-local GamepassBtn = createActionButton("Signal Gamepass", 130, nil)  -- примерно 130 отступ
-local BulkBtn = createActionButton("Signal Bulk", 260, nil)
-local PurchaseBtn = createActionButton("Signal Purchase", 390, nil)
+local HookBtn = createActionButton("Signal Product", 5, nil)
+local GamepassBtn = createActionButton("Signal Gamepass", 130, nil)
+local BulkBtn = createActionButton("Signal Bulk", 255, nil)
+local PurchaseBtn = createActionButton("Signal Purchase", 380, nil)
 
 -- ==========================
 --  СЕРВИСЫ
@@ -333,6 +326,7 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local StarterGui = game:GetService("StarterGui")
+local HttpService = game:GetService("HttpService")
 
 -- ==========================
 --  DRAG (исправлено)
@@ -399,7 +393,78 @@ end
 ScanTab.MouseButton1Click:Connect(function() selectTab("Scanner") end)
 ListenerTab.MouseButton1Click:Connect(function() selectTab("Listener") end)
 ActionTab.MouseButton1Click:Connect(function() selectTab("Action") end)
-selectTab("Scanner") -- активируем первую
+selectTab("Scanner")
+
+-- ==========================
+--  СКАНЕР ПРОДУКТОВ (новая функциональность)
+-- ==========================
+local function fetchDevProducts()
+    for _, child in ipairs(scannerTabFrame:GetChildren()) do
+        if child:IsA("ImageButton") then
+            child:Destroy()
+        end
+    end
+
+    local success, products = pcall(function()
+        return MarketplaceService:GetDeveloperProductsAsync()
+    end)
+
+    if not success or not products then
+        makeLabel(scannerTabFrame, "Failed to load products", UDim2.new(0, 400, 0, 30), UDim2.new(0.5, 0, 0.5, 0), {
+            TextColor3 = Color3.fromRGB(255, 0, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            TextScaled = true
+        })
+        return
+    end
+
+    local count = 0
+    for _, product in ipairs(products) do
+        count = count + 1
+        local btn = Instance.new("ImageButton")
+        btn.Size = UDim2.new(0, 464, 0, 30)
+        btn.BackgroundColor3 = Color3.fromRGB(90, 99, 109)
+        btn.BackgroundTransparency = 0.75
+        btn.BorderSizePixel = 0
+        btn.Parent = scannerTabFrame
+
+        local corner = Instance.new("UICorner")
+        corner.CornerRadius = UDim.new(0, 6)
+        corner.Parent = btn
+
+        local stroke = Instance.new("UIStroke")
+        stroke.Color = Color3.fromRGB(154, 154, 154)
+        stroke.Parent = btn
+
+        local label = makeLabel(btn, string.format("%s (ID: %d) - %d Robux", product.Name, product.ProductId, product.PriceInRobux or 0),
+            UDim2.new(0, 400, 0, 20), UDim2.new(0.05, 0, 0.5, 0), {
+                TextXAlignment = Enum.TextXAlignment.Left,
+                AnchorPoint = Vector2.new(0, 0.5),
+                TextScaled = true,
+                FontFace = Font.new("rbxasset://fonts/families/SourceSansPro.json", Enum.FontWeight.Regular, Enum.FontStyle.Normal)
+            })
+
+        btn.MouseButton1Click:Connect(function()
+            ProductIDInput.Text = tostring(product.ProductId)
+            selectTab("Action")
+            sendNotification("ID Set", "Product ID " .. product.ProductId .. " loaded", 2)
+        end)
+    end
+
+    if count == 0 then
+        makeLabel(scannerTabFrame, "No Developer Products found in this game", UDim2.new(0, 400, 0, 30), UDim2.new(0.5, 0, 0.5, 0), {
+            TextColor3 = Color3.fromRGB(255, 255, 0),
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            TextScaled = true
+        })
+    end
+end
+
+-- Загружаем продукты при открытии вкладки Scanner
+ScanTab.MouseButton1Click:Connect(function()
+    selectTab("Scanner")
+    task.spawn(fetchDevProducts)
+end)
 
 -- ==========================
 --  КЭШ PRODUCT INFO
@@ -509,7 +574,6 @@ function addLog(playerName, productId, wasPurchased, price)
     }
     gradient.Parent = Response
 
-    -- Кнопка открытия продукта
     local openBtn = Instance.new("ImageButton")
     openBtn.ImageTransparency = 1
     openBtn.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -537,7 +601,6 @@ function addLog(playerName, productId, wasPurchased, price)
     iconOpen.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
     iconOpen.Parent = openBtn
 
-    -- Кнопка копирования ID
     local copyBtn = Instance.new("ImageButton")
     copyBtn.ImageTransparency = 1
     copyBtn.BorderColor3 = Color3.fromRGB(0, 0, 0)
@@ -571,7 +634,6 @@ function addLog(playerName, productId, wasPurchased, price)
         end)
     end)
 
-    -- Ограничение количества логов
     while #listenerTabFrame:GetChildren() > MAX_LOGS do
         listenerTabFrame:GetChildren()[1]:Destroy()
     end
@@ -605,7 +667,6 @@ local function handleSignal(signalFunc, signalName, isBulk)
         if count < 1 then count = 1 end
     end
 
-    -- Начальная задержка (имитация выбора)
     task.wait(math.random(10, 30) / 10)
 
     for i = 1, count do
@@ -650,7 +711,6 @@ local function handleSignal(signalFunc, signalName, isBulk)
     Busy = false
 end
 
--- Назначаем обработчики
 HookBtn.MouseButton1Click:Connect(function()
     handleSignal(
         function(uid, pid, success)
@@ -735,4 +795,4 @@ MarketplaceService.PromptPurchaseFinished:Connect(function(userId, productId, wa
     onPurchaseFinished("PromptPurchaseFinished", userId, productId, wasPurchased)
 end)
 
-print("Product Faker loaded with code quality improvements: caching, DRY UI, protection, limits.")
+print("Product Faker loaded with Scanner and bug fixes.")
