@@ -1,0 +1,131 @@
+-- LocalScript (вставьте в StarterPlayerScripts или StarterGui)
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local UserInputService = game:GetService("UserInputService")
+
+local isGhost = false
+
+-- ===== Создание GUI кнопки =====
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "GhostModeGUI"
+screenGui.ResetOnSpawn = false  -- не сбрасывать при респавне
+screenGui.Parent = player.PlayerGui
+
+local button = Instance.new("TextButton")
+button.Name = "ToggleGhostButton"
+button.Size = UDim2.new(0, 150, 0, 50)
+button.Position = UDim2.new(0, 10, 0, 10)  -- левый верхний угол
+button.Text = "Ghost: OFF"
+button.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+button.TextColor3 = Color3.fromRGB(255, 255, 255)
+button.Font = Enum.Font.SourceSansBold
+button.TextSize = 18
+button.Parent = screenGui
+
+-- Чтобы кнопка не мешала взаимодействию с игрой, можно установить:
+button.AutoButtonColor = true
+button.Modal = false  -- не блокирует ввод
+
+-- ===== Функции блокировки =====
+local function setCanTouch(state)
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanTouch = state
+        end
+    end
+end
+
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    if isGhost then
+        setCanTouch(false)
+    end
+end)
+
+local function setToolsEnabled(state)
+    for _, tool in ipairs(player.Backpack:GetChildren()) do
+        if tool:IsA("Tool") then
+            tool.Enabled = state
+        end
+    end
+    for _, tool in ipairs(character:GetChildren()) do
+        if tool:IsA("Tool") then
+            tool.Enabled = state
+        end
+    end
+end
+
+local function onToolAdded(tool)
+    if tool:IsA("Tool") and isGhost then
+        tool.Enabled = false
+    end
+end
+player.Backpack.ChildAdded:Connect(onToolAdded)
+character.ChildAdded:Connect(onToolAdded)
+
+local function setClickDetectorsEnabled(state)
+    for _, detector in ipairs(workspace:GetDescendants()) do
+        if detector:IsA("ClickDetector") then
+            detector.Enabled = state
+        end
+    end
+end
+
+workspace.DescendantAdded:Connect(function(obj)
+    if obj:IsA("ClickDetector") and isGhost then
+        obj.Enabled = false
+    end
+end)
+
+-- Патчинг RemoteEvent/RemoteFunction
+local originals = {}
+
+local function patchRemote(obj)
+    if originals[obj] then return end
+    if obj:IsA("RemoteEvent") then
+        local oldFire = obj.FireServer
+        originals[obj] = { FireServer = oldFire }
+        obj.FireServer = function(...)
+            if isGhost then return end
+            return oldFire(obj, ...)
+        end
+    elseif obj:IsA("RemoteFunction") then
+        local oldInvoke = obj.InvokeServer
+        originals[obj] = { InvokeServer = oldInvoke }
+        obj.InvokeServer = function(...)
+            if isGhost then return end
+            return oldInvoke(obj, ...)
+        end
+    end
+end
+
+for _, obj in ipairs(game:GetDescendants()) do
+    patchRemote(obj)
+end
+
+game.DescendantAdded:Connect(patchRemote)
+
+-- ===== Переключение режима =====
+local function toggleGhost()
+    isGhost = not isGhost
+    setCanTouch(not isGhost)
+    setToolsEnabled(not isGhost)
+    setClickDetectorsEnabled(not isGhost)
+    
+    -- Обновляем текст и цвет кнопки
+    if isGhost then
+        button.Text = "Ghost: ON"
+        button.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+    else
+        button.Text = "Ghost: OFF"
+        button.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+    end
+end
+
+-- Привязка кнопки
+button.MouseButton1Click:Connect(toggleGhost)
+
+-- Инициализация
+setCanTouch(true)
+setToolsEnabled(true)
+setClickDetectorsEnabled(true)
