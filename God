@@ -1,0 +1,8 @@
+local LP = game:GetService("Players").LocalPlayer
+while true do
+    wait(0.01)
+    LP.Energy.Value = 150
+    LP.PlayerGui.energyValueChangedScript.Enabled = false
+    LP.PlayerGui.EnergyBar.Enabled = false
+    LP.PlayerGui.playerDiedScript.Enabled = false
+end
