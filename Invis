@@ -1,33 +1,15 @@
 -- ================================================================
--- Скрипт "Режим призрака" с графической кнопкой (LocalScript)
--- Работает по клику мыши или касанию пальцем на мобильных
+-- Режим "Призрак" для экзекьюторов (Delta, Synapse, Krnl и др.)
+-- Переключение по клавише G (можно сменить)
 -- ================================================================
 
 local player = game.Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local UserInputService = game:GetService("UserInputService")
 
-local isGhost = false  -- true = режим включён (блокировка триггеров)
+local isGhost = false  -- true = режим включён
 
--- ===== СОЗДАНИЕ КНОПКИ =====
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "GhostModeGUI"
-screenGui.Parent = player:WaitForChild("PlayerGui")
-
-local button = Instance.new("TextButton")
-button.Name = "GhostButton"
-button.Size = UDim2.new(0, 160, 0, 50)
-button.Position = UDim2.new(0, 10, 0, 10)
-button.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-button.TextColor3 = Color3.fromRGB(255, 255, 255)
-button.TextScaled = true
-button.Font = Enum.Font.SourceSansBold
-button.Text = "Призрак: ВЫКЛ"
-button.Parent = screenGui
-
--- ===== БЛОКИРУЮЩИЕ ФУНКЦИИ =====
-
--- 1. Отключаем CanTouch у всех частей персонажа
+-- ===== 1. Блокировка CanTouch (персонаж не активирует триггеры) =====
 local function setCanTouch(state)
     for _, part in ipairs(character:GetDescendants()) do
         if part:IsA("BasePart") then
@@ -36,14 +18,13 @@ local function setCanTouch(state)
     end
 end
 
+-- Обновляем при смене персонажа
 player.CharacterAdded:Connect(function(newChar)
     character = newChar
-    if isGhost then
-        setCanTouch(false)
-    end
+    if isGhost then setCanTouch(false) end
 end)
 
--- 2. Блокируем инструменты (нельзя поднять/использовать)
+-- ===== 2. Блокировка инструментов (Enabled = false) =====
 local function setToolsEnabled(state)
     for _, tool in ipairs(player.Backpack:GetChildren()) do
         if tool:IsA("Tool") then
@@ -57,15 +38,14 @@ local function setToolsEnabled(state)
     end
 end
 
-local function onToolAdded(tool)
-    if tool:IsA("Tool") and isGhost then
-        tool.Enabled = false
-    end
-end
-player.Backpack.ChildAdded:Connect(onToolAdded)
-character.ChildAdded:Connect(onToolAdded)
+player.Backpack.ChildAdded:Connect(function(tool)
+    if tool:IsA("Tool") and isGhost then tool.Enabled = false end
+end)
+character.ChildAdded:Connect(function(tool)
+    if tool:IsA("Tool") and isGhost then tool.Enabled = false end
+end)
 
--- 3. Отключаем ClickDetectors
+-- ===== 3. Блокировка ClickDetectors =====
 local function setClickDetectorsEnabled(state)
     for _, detector in ipairs(workspace:GetDescendants()) do
         if detector:IsA("ClickDetector") then
@@ -80,52 +60,54 @@ workspace.DescendantAdded:Connect(function(obj)
     end
 end)
 
--- 4. Блокируем удалённые вызовы (RemoteEvent / RemoteFunction)
+-- ===== 4. Блокировка RemoteEvent / RemoteFunction =====
 local originals = {}
 local function patchRemote(obj)
     if originals[obj] then return end
     if obj:IsA("RemoteEvent") then
         local oldFire = obj.FireServer
-        originals[obj] = { FireServer = oldFire }
-        obj.FireServer = function(...)
+        originals[obj] = oldFire
+        obj.FireServer = function(self, ...)
             if isGhost then return end
-            return oldFire(obj, ...)
+            return oldFire(self, ...)
         end
     elseif obj:IsA("RemoteFunction") then
         local oldInvoke = obj.InvokeServer
-        originals[obj] = { InvokeServer = oldInvoke }
-        obj.InvokeServer = function(...)
+        originals[obj] = oldInvoke
+        obj.InvokeServer = function(self, ...)
             if isGhost then return end
-            return oldInvoke(obj, ...)
+            return oldInvoke(self, ...)
         end
     end
 end
 
+-- Патчим уже существующие объекты
 for _, obj in ipairs(game:GetDescendants()) do
     patchRemote(obj)
 end
+-- Патчим новые
 game.DescendantAdded:Connect(patchRemote)
 
--- ===== ПЕРЕКЛЮЧЕНИЕ РЕЖИМА =====
+-- ===== 5. Функция переключения =====
 local function toggleGhost()
     isGhost = not isGhost
-
     setCanTouch(not isGhost)
     setToolsEnabled(not isGhost)
     setClickDetectorsEnabled(not isGhost)
-
-    if isGhost then
-        button.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
-        button.Text = "Призрак: ВКЛ"
-    else
-        button.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
-        button.Text = "Призрак: ВЫКЛ"
-    end
+    -- Уведомление в консоль
+    print("Режим призрака:", isGhost and "ВКЛЮЧЁН" or "ВЫКЛЮЧЁН")
 end
 
-button.MouseButton1Click:Connect(toggleGhost)
+-- ===== 6. Привязка к клавише G =====
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.G then
+        toggleGhost()
+    end
+end)
 
 -- Инициализация (режим выключен)
 setCanTouch(true)
 setToolsEnabled(true)
 setClickDetectorsEnabled(true)
+print("Скрипт загружен. Нажмите G для переключения режима призрака.")
