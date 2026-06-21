@@ -1,15 +1,34 @@
 -- ================================================================
--- Режим "Призрак" для экзекьюторов (Delta, Synapse, Krnl и др.)
--- Переключение по клавише G (можно сменить)
+-- Режим "Призрак" для Delta на телефоне
+-- Переключение: нажатие на кнопку ИЛИ команда в чате /ghost
 -- ================================================================
 
 local player = game.Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
-local UserInputService = game:GetService("UserInputService")
 
-local isGhost = false  -- true = режим включён
+local isGhost = false
 
--- ===== 1. Блокировка CanTouch (персонаж не активирует триггеры) =====
+-- ===== СОЗДАНИЕ КНОПКИ НА ЭКРАНЕ =====
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "GhostGUI"
+screenGui.Parent = player:WaitForChild("PlayerGui")
+
+local button = Instance.new("TextButton")
+button.Size = UDim2.new(0, 180, 0, 60)
+button.Position = UDim2.new(0.5, -90, 0.8, -30)  -- внизу по центру
+button.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+button.TextColor3 = Color3.fromRGB(255, 255, 255)
+button.TextScaled = true
+button.Font = Enum.Font.SourceSansBold
+button.Text = "Призрак: ВЫКЛ"
+button.Parent = screenGui
+
+-- Сделаем кнопку чуть прозрачной, чтобы не мешала
+button.BackgroundTransparency = 0.3
+
+-- ===== ФУНКЦИИ БЛОКИРОВКИ =====
+
+-- 1. CanTouch
 local function setCanTouch(state)
     for _, part in ipairs(character:GetDescendants()) do
         if part:IsA("BasePart") then
@@ -18,23 +37,18 @@ local function setCanTouch(state)
     end
 end
 
--- Обновляем при смене персонажа
 player.CharacterAdded:Connect(function(newChar)
     character = newChar
     if isGhost then setCanTouch(false) end
 end)
 
--- ===== 2. Блокировка инструментов (Enabled = false) =====
+-- 2. Инструменты
 local function setToolsEnabled(state)
     for _, tool in ipairs(player.Backpack:GetChildren()) do
-        if tool:IsA("Tool") then
-            tool.Enabled = state
-        end
+        if tool:IsA("Tool") then tool.Enabled = state end
     end
     for _, tool in ipairs(character:GetChildren()) do
-        if tool:IsA("Tool") then
-            tool.Enabled = state
-        end
+        if tool:IsA("Tool") then tool.Enabled = state end
     end
 end
 
@@ -45,7 +59,7 @@ character.ChildAdded:Connect(function(tool)
     if tool:IsA("Tool") and isGhost then tool.Enabled = false end
 end)
 
--- ===== 3. Блокировка ClickDetectors =====
+-- 3. ClickDetectors
 local function setClickDetectorsEnabled(state)
     for _, detector in ipairs(workspace:GetDescendants()) do
         if detector:IsA("ClickDetector") then
@@ -60,7 +74,7 @@ workspace.DescendantAdded:Connect(function(obj)
     end
 end)
 
--- ===== 4. Блокировка RemoteEvent / RemoteFunction =====
+-- 4. RemoteEvent / RemoteFunction
 local originals = {}
 local function patchRemote(obj)
     if originals[obj] then return end
@@ -81,28 +95,38 @@ local function patchRemote(obj)
     end
 end
 
--- Патчим уже существующие объекты
 for _, obj in ipairs(game:GetDescendants()) do
     patchRemote(obj)
 end
--- Патчим новые
 game.DescendantAdded:Connect(patchRemote)
 
--- ===== 5. Функция переключения =====
+-- ===== ПЕРЕКЛЮЧЕНИЕ РЕЖИМА =====
 local function toggleGhost()
     isGhost = not isGhost
     setCanTouch(not isGhost)
     setToolsEnabled(not isGhost)
     setClickDetectorsEnabled(not isGhost)
-    -- Уведомление в консоль
-    print("Режим призрака:", isGhost and "ВКЛЮЧЁН" or "ВЫКЛЮЧЁН")
+
+    if isGhost then
+        button.BackgroundColor3 = Color3.fromRGB(200, 0, 0)
+        button.Text = "Призрак: ВКЛ"
+    else
+        button.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+        button.Text = "Призрак: ВЫКЛ"
+    end
+    print("Призрак:", isGhost and "ВКЛ" or "ВЫКЛ")
 end
 
--- ===== 6. Привязка к клавише G =====
-UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.G then
-        toggleGhost()
+-- Нажатие на кнопку (пальцем)
+button.MouseButton1Click:Connect(toggleGhost)
+
+-- ===== КОМАНДА В ЧАТЕ =====
+-- Слушаем сообщения в чате
+game:GetService("TextChatService").MessageReceived:Connect(function(message)
+    if message.TextSource and message.TextSource.UserId == player.UserId then
+        if message.Text == "/ghost" then
+            toggleGhost()
+        end
     end
 end)
 
@@ -110,4 +134,5 @@ end)
 setCanTouch(true)
 setToolsEnabled(true)
 setClickDetectorsEnabled(true)
-print("Скрипт загружен. Нажмите G для переключения режима призрака.")
+
+print("Скрипт загружен! Нажмите кнопку на экране или напишите /ghost в чате.")
