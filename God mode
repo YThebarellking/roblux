@@ -1,29 +1,50 @@
 -- Серверный скрипт (Script) в ServerScriptService
 local Players = game:GetService("Players")
 
-local function setupCharacter(player, character)
-	-- Не обрабатываем клона повторно
-	if character:FindFirstChild("IsClone") then
+local function setupCloneFromCharacter(player, originalChar)
+	-- Не обрабатываем, если это уже клон
+	if originalChar:FindFirstChild("IsClone") then
 		return
 	end
 
-	local humanoid = character:WaitForChild("Humanoid")
+	-- 1. Клонируем персонажа со всем содержимым
+	local clone = originalChar:Clone()
+	clone.Name = player.Name
 
-	-- Отображаемое здоровье (как у обычного игрока 0-100)
+	-- 2. Удаляем все скрипты, чтобы не было двойного выполнения
+	for _, descendant in ipairs(clone:GetDescendants()) do
+		if descendant:IsA("Script") or descendant:IsA("LocalScript") then
+			descendant:Destroy()
+		end
+	end
+
+	-- 3. Метка, чтобы не обработать клона как нового персонажа
+	local isCloneTag = Instance.new("BoolValue")
+	isCloneTag.Name = "IsClone"
+	isCloneTag.Value = true
+	isCloneTag.Parent = clone
+
+	-- 4. Отображаемое здоровье (то, что видит игрок)
 	local displayHealth = Instance.new("IntValue")
 	displayHealth.Name = "DisplayHealth"
 	displayHealth.Value = 100
-	displayHealth.Parent = character
+	displayHealth.Parent = clone
 
-	-- Даём Humanoid огромный запас здоровья, чтобы смерть не наступала сама
-	humanoid.MaxHealth = 1e6
-	humanoid.Health = humanoid.MaxHealth
+	-- 5. Настраиваем Humanoid клона: бесконечный запас здоровья,
+	-- чтобы Roblox не убивал персонажа при достижении 0.
+	local cloneHumanoid = clone:FindFirstChild("Humanoid")
+	if not cloneHumanoid then
+		clone:Destroy()
+		warn("[AlwaysClone] Humanoid не найден в клоне, отмена.")
+		return
+	end
+	cloneHumanoid.MaxHealth = 1e6
+	cloneHumanoid.Health = cloneHumanoid.MaxHealth
 
-	local lastHealth = humanoid.Health
+	local lastHealth = cloneHumanoid.Health
 	local isResetting = false
-	local healthChangedConn
 
-	healthChangedConn = humanoid.HealthChanged:Connect(function(newHealth)
+	cloneHumanoid.HealthChanged:Connect(function(newHealth)
 		if isResetting then
 			lastHealth = newHealth
 			return
@@ -31,90 +52,61 @@ local function setupCharacter(player, character)
 
 		if newHealth < lastHealth then
 			local damage = lastHealth - newHealth
-			-- Мгновенно восстанавливаем здоровье, не даём умереть
+
+			-- Мгновенно восстанавливаем реальное здоровье
 			isResetting = true
-			humanoid.Health = humanoid.MaxHealth
+			cloneHumanoid.Health = cloneHumanoid.MaxHealth
 			isResetting = false
 
+			-- Уменьшаем видимое здоровье
 			displayHealth.Value = math.max(0, displayHealth.Value - damage)
 
+			-- Если видимое здоровье кончилось — восстанавливаем до 100
+			-- (эффект "второго дыхания" без смены персонажа)
 			if displayHealth.Value <= 0 then
-				healthChangedConn:Disconnect()
-				switchToClone(player, character)
+				displayHealth.Value = 100
+				-- Здесь можно вызвать RemoteEvent для клиента, чтобы проиграть эффект,
+				-- но сейчас просто сброс.
 			end
 		end
 
-		lastHealth = humanoid.Health
+		lastHealth = cloneHumanoid.Health
 	end)
-end
 
-local function switchToClone(player, originalCharacter)
-	-- Клонируем персонажа со всеми эффектами, одеждой, позицией и т.д.
-	local clone = originalCharacter:Clone()
-
-	-- Удаляем все скрипты, чтобы не было двойного выполнения
-	for _, descendant in ipairs(clone:GetDescendants()) do
-		if descendant:IsA("Script") or descendant:IsA("LocalScript") then
-			descendant:Destroy()
-		end
+	-- 6. Позиционируем клона там же, где оригинал
+	local originalRoot = originalChar:FindFirstChild("HumanoidRootPart")
+	local cloneRoot = clone:FindFirstChild("HumanoidRootPart")
+	if originalRoot and cloneRoot then
+		clone:SetPrimaryPartCFrame(originalRoot.CFrame)
 	end
-
-	-- Убираем служебное значение здоровья
-	local disp = clone:FindFirstChild("DisplayHealth")
-	if disp then disp:Destroy() end
-
-	-- Настраиваем клона: здоровье всегда 100, камера и управление закрепятся за ним
-	local cloneHumanoid = clone:FindFirstChild("Humanoid")
-	if cloneHumanoid then
-		cloneHumanoid.MaxHealth = 100
-		cloneHumanoid.Health = 100
-		-- Иммунитет к урону
-		cloneHumanoid.HealthChanged:Connect(function(h)
-			if h < 100 then
-				cloneHumanoid.Health = 100
-			end
-		end)
-	end
-
-	-- Позиционируем клона там же, где был оригинал
-	local rootPart = originalCharacter:FindFirstChild("HumanoidRootPart")
-	if rootPart and clone:FindFirstChild("HumanoidRootPart") then
-		clone:SetPrimaryPartCFrame(rootPart.CFrame)
-	end
-
-	clone.Name = player.Name
-	-- Метка, чтобы скрипт не обработал клона как нового персонажа
-	local tag = Instance.new("BoolValue")
-	tag.Name = "IsClone"
-	tag.Parent = clone
 
 	clone.Parent = workspace
 
-	-- Передаём управление и камеру клону
+	-- 7. Передаём клону управление и камеру, делаем его текущим персонажем
 	local success = pcall(function()
 		player:SetCharacter(clone)
 	end)
 
 	if not success then
-		warn("Не удалось назначить клона персонажем")
+		warn("[AlwaysClone] SetCharacter не удался, уничтожаем клона")
 		clone:Destroy()
 		return
 	end
 
-	-- Удаляем оригинал, теперь система считает клона настоящим игроком
+	-- 8. Удаляем оригинального персонажа (он больше не нужен)
 	task.wait(0.5)
-	if originalCharacter and originalCharacter.Parent then
-		originalCharacter:Destroy()
+	if originalChar and originalChar.Parent then
+		originalChar:Destroy()
 	end
 end
 
 local function onPlayerAdded(player)
 	local charConn
 	charConn = player.CharacterAdded:Connect(function(character)
-		setupCharacter(player, character)
+		setupCloneFromCharacter(player, character)
 	end)
 
-	-- Очистка при выходе игрока
+	-- Отключаем прослушку при выходе игрока
 	player.AncestryChanged:Connect(function()
 		charConn:Disconnect()
 	end)
@@ -122,7 +114,7 @@ end
 
 Players.PlayerAdded:Connect(onPlayerAdded)
 
--- Уже зашедшие игроки
+-- Уже присутствующие игроки (на случай перезагрузки скрипта)
 for _, player in ipairs(Players:GetPlayers()) do
 	coroutine.wrap(onPlayerAdded)(player)
 end
