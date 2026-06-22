@@ -1,6 +1,5 @@
 --[[
-    БЕССМЕРТИЕ ЧЕРЕЗ КЛОНА (ВЕРСИЯ 3.0)
-    Исправлены: камера, позиционирование, обработка ошибок
+    БЕССМЕРТИЕ v4.0 — исправлен автореспавн и здоровье клона
 --]]
 
 local player = game.Players.LocalPlayer
@@ -8,7 +7,7 @@ local replicatedStorage = game:GetService("ReplicatedStorage")
 local workspace = game:GetService("Workspace")
 local camera = workspace.CurrentCamera
 
--- Контейнер для хранения клонов (в ReplicatedStorage, чтобы не мешать)
+-- Контейнер для клонов
 local backupContainer = replicatedStorage:FindFirstChild("__BACKUPS__") or Instance.new("Folder")
 if not backupContainer.Parent then
     backupContainer.Name = "__BACKUPS__"
@@ -17,10 +16,11 @@ end
 
 local clone = nil
 local isRespawning = false
+local isCloneActive = false      -- флаг, что мы сейчас на клоне
 local healthConnection = nil
-local updateLoop = nil
+local charAddedConnection = nil  -- для перехвата респавна
 
--- Создание резервной копии
+-- Создание резервного клона
 local function createBackup()
     if isRespawning then return end
 
@@ -33,25 +33,22 @@ local function createBackup()
         clone = nil
     end
 
-    -- Включаем архивирование для клонирования
+    -- Клонируем
     if not character.Archivable then
         character.Archivable = true
     end
-
     local newClone = character:Clone()
     character.Archivable = false
 
-    -- Проверяем Humanoid
     local cloneHumanoid = newClone:FindFirstChildOfClass("Humanoid")
     if not cloneHumanoid then
         newClone:Destroy()
         return
     end
 
-    -- Убеждаемся, что у клона есть HumanoidRootPart
+    -- Убеждаемся, что есть HumanoidRootPart
     local rootPart = newClone:FindFirstChild("HumanoidRootPart")
     if not rootPart then
-        -- Создаём корневую часть, если отсутствует
         rootPart = Instance.new("Part")
         rootPart.Name = "HumanoidRootPart"
         rootPart.Size = Vector3.new(2, 2, 1)
@@ -64,7 +61,12 @@ local function createBackup()
         newClone.PrimaryPart = rootPart
     end
 
-    -- Прячем клон в контейнер
+    -- Устанавливаем здоровье клона на максимум, чтобы он не умер сразу
+    cloneHumanoid.Health = cloneHumanoid.MaxHealth
+    cloneHumanoid.BreakJointsOnDeath = false  -- чтобы не разваливался
+    cloneHumanoid.PlatformStand = false
+
+    -- Прячем в контейнер
     newClone.Parent = backupContainer
     newClone.Archivable = false
 
@@ -77,62 +79,88 @@ local function switchToClone()
     isRespawning = true
 
     local currentChar = player.Character
-    local oldCFrame = nil
+    local oldCFrame = currentChar and currentChar:GetPivot()
+
+    -- Уничтожаем текущего персонажа
     if currentChar then
-        oldCFrame = currentChar:GetPivot()
         currentChar:Destroy()
     end
 
-    -- Убеждаемся, что у клона есть PrimaryPart
+    -- Подготавливаем клона
     if not clone.PrimaryPart then
         local root = clone:FindFirstChild("HumanoidRootPart")
-        if root then
-            clone.PrimaryPart = root
-        else
-            -- Если нет, создаём (на всякий случай)
-            local hrp = Instance.new("Part")
-            hrp.Name = "HumanoidRootPart"
-            hrp.Size = Vector3.new(2, 2, 1)
-            hrp.Anchored = false
-            hrp.CanCollide = true
-            hrp.Parent = clone
-            local hum = clone:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum.RootPart = hrp
-            end
-            clone.PrimaryPart = hrp
-        end
+        if root then clone.PrimaryPart = root end
     end
-
-    -- Ставим клона на место старого персонажа
     if oldCFrame then
         clone:PivotTo(oldCFrame)
     end
 
-    -- Перемещаем в мир и назначаем игроку
+    -- Ставим здоровье на максимум (на всякий случай)
+    local hum = clone:FindFirstChildOfClass("Humanoid")
+    if hum then
+        hum.Health = hum.MaxHealth
+        hum.BreakJointsOnDeath = false
+        hum.PlatformStand = false
+    end
+
+    -- Помещаем в мир и назначаем
     clone.Parent = workspace
     player.Character = clone
+    isCloneActive = true   -- мы на клоне
 
-    -- ПРИНУДИТЕЛЬНО ОБНОВЛЯЕМ КАМЕРУ
-    local newHumanoid = clone:FindFirstChildOfClass("Humanoid")
-    if newHumanoid then
-        camera.CameraSubject = newHumanoid
+    -- Принудительно обновляем камеру
+    task.wait(0.05)
+    if hum then
+        camera.CameraSubject = hum
     else
         camera.CameraSubject = clone
     end
 
-    -- Очищаем ссылку на клона
+    -- Очищаем ссылку на клон (он теперь основной)
     clone = nil
     isRespawning = false
 
-    -- Создаём нового клона с задержкой
+    -- Создаём нового клона для следующей смерти
     task.wait(0.3)
     createBackup()
+
+    -- Включаем перехват автореспавна
+    if charAddedConnection then
+        charAddedConnection:Disconnect()
+    end
+    charAddedConnection = player.CharacterAdded:Connect(function(newChar)
+        -- Если мы уже на клоне (isCloneActive = true) и появляется новый персонаж,
+        -- значит сервер пытается респавнить. Удаляем нового и возвращаем нашего клона.
+        if isCloneActive and newChar and newChar ~= player.Character then
+            -- Но возможно, это новый персонаж создан нами (например, после респавна мы сами создали)
+            -- Мы проверяем, является ли новый персонаж клоном (по наличию спец. атрибута)
+            -- Просто удалим его и восстановим нашего клона, если он есть
+            local ourClone = workspace:FindFirstChild("__CLONE_MAIN__") -- временный маркер
+            if ourClone then
+                -- Если наш клон ещё существует, делаем его основным
+                if ourClone:IsA("Model") then
+                    player.Character = ourClone
+                    -- обновим камеру
+                    local h = ourClone:FindFirstChildOfClass("Humanoid")
+                    if h then
+                        camera.CameraSubject = h
+                        h.Health = h.MaxHealth
+                    else
+                        camera.CameraSubject = ourClone
+                    end
+                    isCloneActive = true
+                end
+            end
+            -- Удаляем ненужного персонажа (кроме случаев, когда он наш)
+            if newChar ~= player.Character and newChar.Parent == workspace then
+                newChar:Destroy()
+            end
+        end
+    end)
 end
 
--- Обработка появления персонажа
+-- Обработка появления персонажа (обычного)
 local function onCharacterAdded(character)
-    -- Отключаем старый обработчик смерти
     if healthConnection then
         healthConnection:Disconnect()
         healthConnection = nil
@@ -140,16 +168,36 @@ local function onCharacterAdded(character)
 
     local humanoid = character:WaitForChild("Humanoid")
     healthConnection = humanoid.Died:Connect(function()
-        if not clone or not clone.Parent then
-            createBackup()
+        -- Если мы уже на клоне, то игнорируем смерть (она не должна происходить)
+        if isCloneActive then
+            -- но если вдруг клон умер, то попробуем переключиться на резерв
+            if clone then
+                switchToClone()
+            else
+                -- создадим нового клона и переключимся
+                createBackup()
+                switchToClone()
+            end
             return
         end
-        if not isRespawning then
+
+        -- Обычная смерть — активируем клона
+        if clone and not isRespawning then
             switchToClone()
         end
     end)
 
-    createBackup()
+    -- Создаём резерв для нового персонажа (если мы не на клоне)
+    if not isCloneActive then
+        createBackup()
+    end
+
+    -- Помечаем нашего клона (если он есть) специальным атрибутом для распознавания
+    local current = player.Character
+    if current and current ~= character then
+        -- это может быть наш клон, добавим маркер
+        current:SetAttribute("IsCloneMain", true)
+    end
 end
 
 -- Запуск для текущего персонажа
@@ -159,13 +207,13 @@ else
     player.CharacterAdded:Connect(onCharacterAdded)
 end
 
--- Периодическое обновление клона (каждые 15 секунд), чтобы отражать изменения экипировки
+-- Периодическое обновление клона (чтобы отражать изменения)
 task.spawn(function()
     while task.wait(15) do
-        if not isRespawning and player.Character then
+        if not isRespawning and not isCloneActive and player.Character then
             createBackup()
         end
     end
 end)
 
-print("✅ Бессмертие с фиксом камеры активировано (Delta)")
+print("✅ Бессмертие v4.0 активировано (автореспавн заблокирован)")
