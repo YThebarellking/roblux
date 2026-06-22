@@ -1,9 +1,8 @@
 -- ============================================================
--- БЕССМЕРТИЕ v5.0 (улучшенная версия с перетаскиваемым GUI)
+-- БЕССМЕРТИЕ v5.1 (исправленная версия для R6/R15)
 -- ============================================================
--- Описание: локальное бессмертие с резервным копированием персонажа.
--- Особенности: перетаскиваемый GUI, горячая клавиша F9,
--- настраиваемый порог здоровья и интервал резервирования.
+-- Особенности: перетаскиваемый GUI, F9, надёжное клонирование,
+-- восстановление позиции через HumanoidRootPart.
 -- ============================================================
 
 local Players = game:GetService("Players")
@@ -16,13 +15,12 @@ local player = Players.LocalPlayer
 local camera = Workspace.CurrentCamera
 
 -- ============================================================
--- НАСТРОЙКИ (можно менять под себя)
+-- НАСТРОЙКИ
 -- ============================================================
 local CONFIG = {
-    HealthThreshold = 5,      -- при падении здоровья ниже этого значения – мгновенное восстановление
-    BackupInterval = 2.5,     -- интервал создания резервных копий (в секундах)
-    ToggleKey = Enum.KeyCode.F9,  -- клавиша включения/выключения
-    UseCoreGui = true,        -- хранить резервный клон в CoreGui (надёжнее, чем в Workspace)
+    HealthThreshold = 5,      -- при падении ниже этого значения – мгновенное восстановление
+    BackupInterval = 2.5,     -- интервал создания резервных копий (сек)
+    ToggleKey = Enum.KeyCode.F9,
 }
 
 -- ============================================================
@@ -37,6 +35,7 @@ local state = {
     backupTimer = nil,
     charAddedConnection = nil,
     humanoid = nil,
+    deathPending = false,      -- флаг, чтобы не создавать несколько резервов при смерти
 }
 
 -- ============================================================
@@ -53,7 +52,6 @@ local dragOffset = nil
 
 local function createGUI()
     if gui then gui:Destroy() end
-
     gui = Instance.new("ScreenGui")
     gui.Name = "ImmortalityGUI"
     gui.Parent = CoreGui
@@ -67,18 +65,16 @@ local function createGUI()
     frame.BorderSizePixel = 0
     frame.Parent = gui
 
-    -- Заголовок с возможностью перетаскивания
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 0.2, 0)
     title.Position = UDim2.new(0, 0, 0, 0)
-    title.Text = "🛡️ Бессмертие v5"
+    title.Text = "🛡️ Бессмертие v5.1"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
     title.BackgroundTransparency = 1
     title.Font = Enum.Font.GothamBold
     title.TextSize = 18
     title.Parent = frame
 
-    -- Кнопка включения/выключения
     toggleButton = Instance.new("TextButton")
     toggleButton.Size = UDim2.new(0.5, 0, 0.25, 0)
     toggleButton.Position = UDim2.new(0.25, 0, 0.22, 0)
@@ -89,7 +85,6 @@ local function createGUI()
     toggleButton.TextSize = 14
     toggleButton.Parent = frame
 
-    -- Статус
     statusLabel = Instance.new("TextLabel")
     statusLabel.Size = UDim2.new(1, 0, 0.18, 0)
     statusLabel.Position = UDim2.new(0, 0, 0.5, 0)
@@ -100,7 +95,6 @@ local function createGUI()
     statusLabel.TextSize = 13
     statusLabel.Parent = frame
 
-    -- Счётчик резервов
     countLabel = Instance.new("TextLabel")
     countLabel.Size = UDim2.new(0.5, 0, 0.15, 0)
     countLabel.Position = UDim2.new(0, 0, 0.7, 0)
@@ -112,7 +106,6 @@ local function createGUI()
     countLabel.TextXAlignment = Enum.TextXAlignment.Left
     countLabel.Parent = frame
 
-    -- Здоровье (дополнительно)
     healthLabel = Instance.new("TextLabel")
     healthLabel.Size = UDim2.new(0.5, 0, 0.15, 0)
     healthLabel.Position = UDim2.new(0.5, 0, 0.7, 0)
@@ -124,7 +117,7 @@ local function createGUI()
     healthLabel.TextXAlignment = Enum.TextXAlignment.Right
     healthLabel.Parent = frame
 
-    -- Перетаскивание (обработчики мыши)
+    -- Перетаскивание
     local function onInputBegan(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = true
@@ -132,63 +125,42 @@ local function createGUI()
             dragOffset = frame.Position
         end
     end
-
     local function onInputChanged(input)
         if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
             local delta = input.Position - dragStart
-            local offset = dragOffset + UDim2.new(0, delta.X, 0, delta.Y)
-            frame.Position = offset
+            frame.Position = dragOffset + UDim2.new(0, delta.X, 0, delta.Y)
         end
     end
-
     local function onInputEnded(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             dragging = false
         end
     end
-
     title.InputBegan:Connect(onInputBegan)
     title.InputChanged:Connect(onInputChanged)
     title.InputEnded:Connect(onInputEnded)
 
-    -- Кнопка переключения
     toggleButton.MouseButton1Click:Connect(function()
-        if state.active then
-            stopScript()
-        else
-            startScript()
-        end
+        if state.active then stopScript() else startScript() end
     end)
 
-    -- Горячая клавиша (глобальная)
     local toggleKeyConnection = UserInputService.InputBegan:Connect(function(input, processed)
         if processed then return end
         if input.KeyCode == CONFIG.ToggleKey then
-            if state.active then
-                stopScript()
-            else
-                startScript()
-            end
+            if state.active then stopScript() else startScript() end
         end
     end)
-    -- сохраним для очистки
     table.insert(state.connections, toggleKeyConnection)
 end
 
 -- ============================================================
--- УПРАВЛЕНИЕ ПОДПИСКАМИ
+-- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 -- ============================================================
 local function clearConnections()
     for _, conn in ipairs(state.connections) do
         pcall(conn.Disconnect, conn)
     end
-    table.clear(state.connections)  -- если table.clear не определён, можно заменить на цикл
-    -- но в новом Lua (Luau) table.clear существует. Для надёжности оставим fallback:
-    if not table.clear then
-        for i = #state.connections, 1, -1 do
-            table.remove(state.connections, i)
-        end
-    end
+    table.clear(state.connections)
 end
 
 local function addConnection(conn)
@@ -196,23 +168,33 @@ local function addConnection(conn)
     return conn
 end
 
+-- Получение основной части для позиционирования (HumanoidRootPart или PrimaryPart)
+local function getRootPart(character)
+    if not character then return nil end
+    if character.PrimaryPart then return character.PrimaryPart end
+    return character:FindFirstChild("HumanoidRootPart")
+end
+
 -- ============================================================
--- РЕЗЕРВНОЕ КОПИРОВАНИЕ
+-- СОЗДАНИЕ РЕЗЕРВНОГО КЛОНА (с принудительным здоровьем, если оригинал мёртв)
 -- ============================================================
 local function createBackup()
     local character = player.Character
     if not character then return end
 
     local humanoid = character:FindFirstChildOfClass("Humanoid")
-    if not humanoid or humanoid.Health <= 0 then return end
+    if not humanoid then return end
 
-    -- Удаляем старый клон, если есть
+    -- Если персонаж мёртв, мы всё равно можем создать клон, но дадим ему полное здоровье
+    local isDead = (humanoid.Health <= 0)
+
+    -- Удаляем старый клон
     if state.clone then
         pcall(state.clone.Destroy, state.clone)
         state.clone = nil
     end
 
-    -- Клонируем персонажа (делаем его архивируемым)
+    -- Клонируем
     local wasArchivable = character.Archivable
     character.Archivable = true
     local newClone = character:Clone()
@@ -224,30 +206,21 @@ local function createBackup()
         return
     end
 
-    -- Сохраняем в CoreGui (или Workspace, если указано)
-    if CONFIG.UseCoreGui then
-        newClone.Parent = CoreGui
-    else
-        newClone.Parent = Workspace
-        newClone:SetAttribute("IsBackup", true)  -- пометка, чтобы не мешать
-        newClone.CanCollide = false
-        for _, part in ipairs(newClone:GetDescendants()) do
-            if part:IsA("BasePart") then
-                part.CanCollide = false
-                part.Transparency = 1  -- полностью прозрачный, чтобы не мешать
-            end
-        end
-    end
-
+    -- Помещаем клон в CoreGui (или Workspace, но CoreGui надёжнее)
+    newClone.Parent = CoreGui
     newClone.Archivable = false
 
-    -- Копируем состояние здоровья
-    cloneHum.Health = humanoid.Health
-    cloneHum.MaxHealth = humanoid.MaxHealth
+    -- Настройка Humanoid
     cloneHum.BreakJointsOnDeath = false
     cloneHum:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+    if isDead then
+        cloneHum.Health = humanoid.MaxHealth   -- воскрешаем в клоне
+    else
+        cloneHum.Health = humanoid.Health
+    end
+    cloneHum.MaxHealth = humanoid.MaxHealth
 
-    -- Внешность (опционально)
+    -- Внешность (если есть)
     pcall(function()
         local desc = humanoid:GetDescription()
         cloneHum:ApplyDescription(desc)
@@ -266,9 +239,12 @@ local function createBackup()
         end
     end
 
-    -- Позиция
-    if character.PrimaryPart then
-        newClone:SetPrimaryPartCFrame(character:GetPivot())
+    -- Позиция – используем HumanoidRootPart или PrimaryPart
+    local rootPart = getRootPart(character)
+    if rootPart then
+        newClone:SetPrimaryPartCFrame(rootPart.CFrame)
+    else
+        -- Если нет ни одной части, оставляем как есть (но это маловероятно)
     end
 
     state.clone = newClone
@@ -290,9 +266,13 @@ local function restoreFromBackup(newChar)
     local cloneHum = state.clone:FindFirstChildOfClass("Humanoid")
     if not cloneHum then return end
 
-    -- Восстановление позиции
-    if state.clone.PrimaryPart and newChar.PrimaryPart then
-        newChar:PivotTo(state.clone:GetPivot())
+    -- Восстановление позиции через HumanoidRootPart (или PrimaryPart)
+    local rootPart = getRootPart(state.clone)
+    if rootPart then
+        local targetRoot = getRootPart(newChar)
+        if targetRoot then
+            targetRoot.CFrame = rootPart.CFrame
+        end
     end
 
     -- Здоровье
@@ -333,20 +313,95 @@ local function restoreFromBackup(newChar)
     camera.CameraSubject = newHum
 
     state.isRespawning = false
+    state.deathPending = false
 end
 
 -- ============================================================
--- ЗАЩИТА ОТ УРОНА (мгновенное восстановление здоровья)
+-- ЗАЩИТА ОТ УРОНА И СОЗДАНИЕ РЕЗЕРВА ПРИ СМЕРТЕЛЬНОМ УРОНЕ
 -- ============================================================
-local function protectFromDamage(humanoid)
+local function onHealthChanged(humanoid)
     if not humanoid or not state.active then return end
-    if humanoid.Health <= CONFIG.HealthThreshold then
+
+    local health = humanoid.Health
+    -- Если здоровье упало ниже порога, но ещё не 0 – восстанавливаем
+    if health > 0 and health <= CONFIG.HealthThreshold then
         humanoid.Health = humanoid.MaxHealth
     end
+
+    -- Если здоровье стало <= 0 и персонаж ещё не удалён – создаём резерв (на случай смерти)
+    if health <= 0 and not state.deathPending then
+        state.deathPending = true
+        -- Создаём резерв из мёртвого тела (здоровье в клоне будет MaxHealth)
+        createBackup()
+        -- После этого персонаж всё равно умрёт, и мы восстановимся из этого резерва
+    end
+
+    updateHealthDisplay()
 end
 
 -- ============================================================
--- ОБНОВЛЕНИЕ GUI (здоровье)
+-- ОБРАБОТКА СМЕРТИ (вызывается после удаления персонажа)
+-- ============================================================
+local function onDeath()
+    if state.isRespawning or not state.active then return end
+    state.isRespawning = true
+
+    -- Если резерв не был создан (например, здоровье упало с >0 до 0 мгновенно, но мы не поймали), попытаемся сейчас
+    if not state.clone then
+        createBackup()  -- может не сработать, если персонаж уже удалён, но попытка не помешает
+    end
+
+    -- Ожидаем появления нового персонажа
+    if state.charAddedConnection then
+        state.charAddedConnection:Disconnect()
+        state.charAddedConnection = nil
+    end
+    state.charAddedConnection = player.CharacterAdded:Connect(function(newChar)
+        state.charAddedConnection:Disconnect()
+        state.charAddedConnection = nil
+
+        local newHum = newChar:WaitForChild("Humanoid", 5)
+        if not newHum then
+            state.isRespawning = false
+            state.deathPending = false
+            return
+        end
+
+        task.wait(0.1)
+        restoreFromBackup(newChar)
+
+        -- Обновляем ссылку на Humanoid
+        state.humanoid = newHum
+
+        -- Подписываемся на события нового персонажа
+        addConnection(newHum.Died:Connect(onDeath))
+        addConnection(newHum.HealthChanged:Connect(function()
+            onHealthChanged(newHum)
+        end))
+        addConnection(newHum:GetPropertyChangedSignal("Health"):Connect(updateHealthDisplay))
+
+        -- Периодическое резервирование (если ещё не запущено)
+        if not state.backupTimer then
+            state.backupTimer = RunService.Heartbeat:Connect(function()
+                if state.active and player.Character and player.Character == newChar then
+                    local h = player.Character:FindFirstChildOfClass("Humanoid")
+                    if h and h.Health > 0 then
+                        createBackup()
+                        updateHealthDisplay()
+                    end
+                end
+            end)
+            addConnection(state.backupTimer)
+        end
+
+        state.isRespawning = false
+        state.deathPending = false
+    end)
+    addConnection(state.charAddedConnection)
+end
+
+-- ============================================================
+-- ОБНОВЛЕНИЕ GUI
 -- ============================================================
 local function updateHealthDisplay()
     if not healthLabel then return end
@@ -364,65 +419,6 @@ local function updateHealthDisplay()
 end
 
 -- ============================================================
--- ОБРАБОТКА СМЕРТИ ПЕРСОНАЖА
--- ============================================================
-local function onDeath()
-    if state.isRespawning or not state.active then return end
-    state.isRespawning = true
-
-    -- Создаём финальный резерв перед смертью
-    createBackup()
-
-    -- Подписываемся на появление нового персонажа
-    if state.charAddedConnection then
-        state.charAddedConnection:Disconnect()
-        state.charAddedConnection = nil
-    end
-    state.charAddedConnection = player.CharacterAdded:Connect(function(newChar)
-        state.charAddedConnection:Disconnect()
-        state.charAddedConnection = nil
-
-        -- Ждём появления Humanoid
-        local newHum = newChar:WaitForChild("Humanoid", 5)
-        if not newHum then
-            state.isRespawning = false
-            return
-        end
-
-        task.wait(0.1)
-        restoreFromBackup(newChar)
-
-        -- Обновляем ссылку на Humanoid
-        state.humanoid = newHum
-
-        -- Подписываемся на события нового персонажа
-        addConnection(newHum.Died:Connect(onDeath))
-        addConnection(newHum.HealthChanged:Connect(function()
-            protectFromDamage(newHum)
-            updateHealthDisplay()
-        end))
-        addConnection(newHum:GetPropertyChangedSignal("Health"):Connect(updateHealthDisplay))
-
-        -- Запускаем периодическое резервирование (если ещё не запущено)
-        if not state.backupTimer then
-            state.backupTimer = RunService.Heartbeat:Connect(function()
-                if state.active and player.Character and player.Character == newChar then
-                    local h = player.Character:FindFirstChildOfClass("Humanoid")
-                    if h and h.Health > 0 then
-                        createBackup()
-                        updateHealthDisplay()
-                    end
-                end
-            end)
-            addConnection(state.backupTimer)
-        end
-
-        state.isRespawning = false
-    end)
-    addConnection(state.charAddedConnection)
-end
-
--- ============================================================
 -- ЗАПУСК / ОСТАНОВКА
 -- ============================================================
 function startScript()
@@ -436,9 +432,9 @@ function startScript()
 
     clearConnections()
     state.backupCount = 0
+    state.deathPending = false
     if countLabel then countLabel.Text = "Резервов: 0" end
 
-    -- Если персонаж уже есть – готовим события
     local character = player.Character
     if character then
         local hum = character:FindFirstChildOfClass("Humanoid")
@@ -447,14 +443,13 @@ function startScript()
             createBackup()
             addConnection(hum.Died:Connect(onDeath))
             addConnection(hum.HealthChanged:Connect(function()
-                protectFromDamage(hum)
-                updateHealthDisplay()
+                onHealthChanged(hum)
             end))
             addConnection(hum:GetPropertyChangedSignal("Health"):Connect(updateHealthDisplay))
         end
     end
 
-    -- Отслеживаем появление нового персонажа (если персонажа нет или он будет заменён)
+    -- Отслеживание нового персонажа (если появится)
     if not state.charAddedConnection then
         state.charAddedConnection = player.CharacterAdded:Connect(function(char)
             local hum = char:WaitForChild("Humanoid", 5)
@@ -463,8 +458,7 @@ function startScript()
                 createBackup()
                 addConnection(hum.Died:Connect(onDeath))
                 addConnection(hum.HealthChanged:Connect(function()
-                    protectFromDamage(hum)
-                    updateHealthDisplay()
+                    onHealthChanged(hum)
                 end))
                 addConnection(hum:GetPropertyChangedSignal("Health"):Connect(updateHealthDisplay))
             end
@@ -472,7 +466,7 @@ function startScript()
         addConnection(state.charAddedConnection)
     end
 
-    -- Периодическое резервирование (с заданным интервалом)
+    -- Периодическое резервирование
     if not state.backupTimer then
         state.backupTimer = RunService.Heartbeat:Connect(function()
             if state.active and player.Character then
@@ -513,6 +507,7 @@ function stopScript()
         state.clone = nil
     end
     state.humanoid = nil
+    state.deathPending = false
     updateHealthDisplay()
     print("✅ Бессмертие выключено")
 end
@@ -521,9 +516,8 @@ end
 -- ИНИЦИАЛИЗАЦИЯ
 -- ============================================================
 createGUI()
-startScript()  -- по умолчанию включено
+startScript()  -- включено по умолчанию
 
--- Очистка при выходе игрока
 player.PlayerRemoving:Connect(function()
     clearConnections()
     if state.clone then pcall(state.clone.Destroy, state.clone) end
@@ -532,12 +526,10 @@ player.PlayerRemoving:Connect(function()
     if gui then gui:Destroy() end
 end)
 
--- Обновление здоровья в GUI периодически (на случай, если событие не сработает)
+-- Фоновое обновление здоровья
 task.spawn(function()
     while true do
         task.wait(1)
-        if state.active then
-            updateHealthDisplay()
-        end
+        if state.active then updateHealthDisplay() end
     end
 end)
