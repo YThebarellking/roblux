@@ -1,41 +1,48 @@
 -- =====================================================
 -- Скрипт подмены внешности, имени и аватарок (с GUI)
--- Автоматическое добавление символа  к нику
+-- Исправлены все проблемы: утечки, производительность, надёжность
 -- =====================================================
 
 getgenv().username = getgenv().username or getgenv().Xiar_TargetUser or "Builderman"
 getgenv().spoofAll = getgenv().spoofAll or getgenv().Xiar_SpoofEveryone or false
 
-local TARGET = getgenv().username
-local SPOOF_ALL = getgenv().spoofAll
-
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
 local PlayerGui = LP:WaitForChild("PlayerGui")
+local CoreGui = game:GetService("CoreGui")  -- для чата и других интерфейсов
 
 -- ========== Глобальные переменные ==========
-local currentTarget = TARGET
-local currentSpoofAll = SPOOF_ALL
+local currentTarget = getgenv().username
+local currentSpoofAll = getgenv().spoofAll
 local spoofConnections = {}
 local isRunning = false
+local nameConnection = nil          -- для предотвращения утечки CharacterAdded
+local textUpdating = false          -- защита от рекурсии при подмене текста
 
--- Символ галочки (Roblox)
-local CHECKMARK = ""
+-- Символ галочки (можно заменить на "", но "✓" работает везде)
+local CHECKMARK = "✓"   -- если нужен именно , замените на "\u{EE00}" или ""
 
--- ========== Восстановление оригиналов ==========
+-- ========== Функции восстановления оригиналов ==========
 local function restoreOriginals()
-    for _, obj in ipairs(game:GetDescendants()) do
+    for _, obj in ipairs(PlayerGui:GetDescendants()) do
         if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
             local orig = obj:GetAttribute("OriginalText")
-            if orig then
-                obj.Text = orig
-            end
+            if orig then obj.Text = orig end
         end
         if obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
             local orig = obj:GetAttribute("OriginalImage")
-            if orig then
-                obj.Image = orig
-            end
+            if orig then obj.Image = orig end
+        end
+    end
+    -- Также проверяем CoreGui (чат, список игроков и т.д.)
+    for _, obj in ipairs(CoreGui:GetDescendants()) do
+        if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+            local orig = obj:GetAttribute("OriginalText")
+            if orig then obj.Text = orig end
+        end
+        if obj:IsA("ImageLabel") or obj:IsA("ImageButton") then
+            local orig = obj:GetAttribute("OriginalImage")
+            if orig then obj.Image = orig end
         end
     end
 end
@@ -45,6 +52,10 @@ local function stopSpoof()
     restoreOriginals()
     for _, conn in ipairs(spoofConnections) do
         pcall(function() conn:Disconnect() end)
+    end
+    if nameConnection then
+        nameConnection:Disconnect()
+        nameConnection = nil
     end
     spoofConnections = {}
     isRunning = false
@@ -57,16 +68,12 @@ end
 
 -- ========== Вспомогательные функции ==========
 local function getUserId(name)
-    local s, id = pcall(function()
-        return Players:GetUserIdFromNameAsync(name)
-    end)
+    local s, id = pcall(function() return Players:GetUserIdFromNameAsync(name) end)
     return s and id
 end
 
 local function getDisplayName(userId)
-    local s, name = pcall(function()
-        return Players:GetNameFromUserIdAsync(userId)
-    end)
+    local s, name = pcall(function() return Players:GetNameFromUserIdAsync(userId) end)
     return s and name or currentTarget
 end
 
@@ -81,9 +88,7 @@ end
 
 local function findAttachment(char, name)
     for _, v in ipairs(char:GetDescendants()) do
-        if v:IsA("Attachment") and v.Name == name then
-            return v
-        end
+        if v:IsA("Attachment") and v.Name == name then return v end
     end
 end
 
@@ -95,9 +100,7 @@ local function forceAttachAccessory(char, accessory)
     local charAttachment = findAttachment(char, accAttachment.Name)
     if not charAttachment then return end
     for _, v in ipairs(handle:GetChildren()) do
-        if v:IsA("Weld") or v:IsA("Motor6D") then
-            v:Destroy()
-        end
+        if v:IsA("Weld") or v:IsA("Motor6D") then v:Destroy() end
     end
     local weld = Instance.new("Weld")
     weld.Part0 = charAttachment.Parent
@@ -144,19 +147,22 @@ local function handleHead(char, appearance)
     end
 end
 
--- ========== Применение внешности (с ожиданием персонажа) ==========
+-- ========== Применение внешности (с защитой от сбоев) ==========
 local function applyAppearance(userId)
     local char = LP.Character
     if not char then
         char = LP.CharacterAdded:Wait()
     end
-    -- Ждём, пока персонаж полностью загрузится
     repeat task.wait() until char:FindFirstChildOfClass("Humanoid") and char:FindFirstChild("Head")
     
+    -- Загружаем внешность с проверкой
     local success, appearance = pcall(function()
         return Players:GetCharacterAppearanceAsync(userId)
     end)
-    if not success or not appearance then return end
+    if not success or not appearance then
+        warn("Не удалось загрузить внешний вид для " .. userId)
+        return
+    end
     
     local hum = char:FindFirstChildOfClass("Humanoid")
     clearCharacter(char)
@@ -177,13 +183,19 @@ local function applyAppearance(userId)
     handleHead(char, appearance)
 end
 
--- ========== Применение имени (с добавлением галочки) ==========
+-- ========== Применение имени (без утечек) ==========
 local function applyName(fakeName)
-    -- Добавляем символ  в конец, если его нет
+    -- Добавляем галочку, если её нет
     if not fakeName:find(CHECKMARK) then
         fakeName = fakeName .. CHECKMARK
     end
-    pcall(function() LP.DisplayName = fakeName end)
+    
+    -- Отключаем старый обработчик
+    if nameConnection then
+        nameConnection:Disconnect()
+        nameConnection = nil
+    end
+    
     local function applyToChar(char)
         pcall(function() char.Name = fakeName end)
         local hum = char:FindFirstChildOfClass("Humanoid")
@@ -191,17 +203,27 @@ local function applyName(fakeName)
             pcall(function() hum.DisplayName = fakeName end)
         end
     end
-    if LP.Character then applyToChar(LP.Character) end
-    LP.CharacterAdded:Connect(function(char)
+    
+    if LP.Character then
+        applyToChar(LP.Character)
+    end
+    
+    nameConnection = LP.CharacterAdded:Connect(function(char)
         task.wait(0.5)
         applyToChar(char)
     end)
 end
 
--- ========== Подмена текста ==========
+-- ========== Подмена текста (с защитой от рекурсии) ==========
 local function startTextSpoof(fakeName)
     local function replace(obj)
-        if not (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then return end
+        if textUpdating then return end
+        textUpdating = true
+        
+        if not (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then
+            textUpdating = false
+            return
+        end
         if not obj:GetAttribute("OriginalText") then
             obj:SetAttribute("OriginalText", obj.Text)
         end
@@ -217,8 +239,10 @@ local function startTextSpoof(fakeName)
         if new ~= obj.Text then
             obj.Text = new
         end
+        
+        textUpdating = false
     end
-
+    
     local function hook(obj)
         if not (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then return end
         pcall(replace, obj)
@@ -227,35 +251,40 @@ local function startTextSpoof(fakeName)
         end)
         table.insert(spoofConnections, conn)
     end
-
-    for _, v in ipairs(game:GetDescendants()) do
-        hook(v)
+    
+    -- Проверяем только PlayerGui и CoreGui (для производительности)
+    for _, gui in ipairs({PlayerGui, CoreGui}) do
+        for _, v in ipairs(gui:GetDescendants()) do
+            hook(v)
+        end
+        table.insert(spoofConnections, gui.DescendantAdded:Connect(hook))
     end
-    table.insert(spoofConnections, game.DescendantAdded:Connect(hook))
 end
 
--- ========== Подмена аватарок ==========
+-- ========== Подмена аватарок (улучшенная) ==========
 local function startHeadshotSpoof(userId)
     local fakeHeadshot = getHeadshot(userId)
-    local realId = LP.UserId
-
+    
     local function replace(obj)
         if not (obj:IsA("ImageLabel") or obj:IsA("ImageButton")) then return end
         if not obj:GetAttribute("OriginalImage") then
             obj:SetAttribute("OriginalImage", obj.Image)
         end
         local orig = obj:GetAttribute("OriginalImage")
-        if typeof(orig) == "string" and orig:find(tostring(realId)) then
+        -- Проверяем, что это ссылка на аватар (содержит "HeadShot" и размер)
+        if type(orig) == "string" and orig:find("HeadShot") and orig:find("420x420") then
             if obj.Image ~= fakeHeadshot then
                 obj.Image = fakeHeadshot
             end
         end
     end
-
-    for _, v in ipairs(game:GetDescendants()) do
-        replace(v)
+    
+    for _, gui in ipairs({PlayerGui, CoreGui}) do
+        for _, v in ipairs(gui:GetDescendants()) do
+            replace(v)
+        end
+        table.insert(spoofConnections, gui.DescendantAdded:Connect(replace))
     end
-    table.insert(spoofConnections, game.DescendantAdded:Connect(replace))
 end
 
 -- ========== Основная функция запуска ==========
@@ -265,34 +294,30 @@ local function startSpoof(targetName, spoofAll)
     currentSpoofAll = spoofAll
     getgenv().username = targetName
     getgenv().spoofAll = spoofAll
-
+    
     local userId = getUserId(targetName)
     if not userId then
         warn("Не удалось найти пользователя: " .. targetName)
         return
     end
-
+    
     local fakeName = getDisplayName(userId)
     isRunning = true
-
-    -- Применяем внешность (ждём загрузки)
+    
     applyAppearance(userId)
-    -- Применяем имя с галочкой
     applyName(fakeName)
-    -- Подменяем тексты и аватарки
     startTextSpoof(fakeName)
     startHeadshotSpoof(userId)
-
-    -- Обработка респавна
+    
+    -- Обработка респавна (уже есть в applyName, но для внешности добавим отдельно)
     local charAddedConn = LP.CharacterAdded:Connect(function()
-        task.wait(0.1) -- небольшая задержка для загрузки
+        task.wait(0.1)
         if isRunning then
             applyAppearance(userId)
-            applyName(fakeName)
         end
     end)
     table.insert(spoofConnections, charAddedConn)
-
+    
     -- Показываем галочку статуса
     local gui = PlayerGui:FindFirstChild("SpoofGUI")
     if gui then
@@ -301,15 +326,15 @@ local function startSpoof(targetName, spoofAll)
     end
 end
 
--- ========== СОЗДАНИЕ GUI ==========
+-- ========== СОЗДАНИЕ GUI (с ручным перетаскиванием) ==========
 local function createGUI()
     local oldGui = PlayerGui:FindFirstChild("SpoofGUI")
     if oldGui then oldGui:Destroy() end
-
+    
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "SpoofGUI"
     screenGui.Parent = PlayerGui
-
+    
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(0, 300, 0, 170)
     frame.Position = UDim2.new(0.5, -150, 0.5, -85)
@@ -318,9 +343,33 @@ local function createGUI()
     frame.BorderSizePixel = 1
     frame.BorderColor3 = Color3.fromRGB(255, 255, 255)
     frame.Active = true
-    frame.Draggable = true
     frame.Parent = screenGui
-
+    
+    -- Перетаскивание вручную
+    local dragging = false
+    local dragInput, dragStart, startPos
+    
+    frame.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                end
+            end)
+        end
+    end)
+    
+    frame.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement and dragging then
+            local delta = input.Position - dragStart
+            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+                                       startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+    
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 0, 30)
     title.Position = UDim2.new(0, 0, 0, 0)
@@ -330,7 +379,7 @@ local function createGUI()
     title.TextScaled = true
     title.Font = Enum.Font.GothamBold
     title.Parent = frame
-
+    
     -- Поле ввода
     local textBox = Instance.new("TextBox")
     textBox.Size = UDim2.new(0.7, 0, 0, 30)
@@ -343,7 +392,7 @@ local function createGUI()
     textBox.Font = Enum.Font.Gotham
     textBox.TextSize = 16
     textBox.Parent = frame
-
+    
     -- Кнопка "Применить"
     local applyBtn = Instance.new("TextButton")
     applyBtn.Size = UDim2.new(0.2, 0, 0, 30)
@@ -355,7 +404,7 @@ local function createGUI()
     applyBtn.TextSize = 14
     applyBtn.AutoButtonColor = true
     applyBtn.Parent = frame
-
+    
     -- Чекбокс "Подменять всех"
     local checkBox = Instance.new("TextButton")
     checkBox.Size = UDim2.new(0.9, 0, 0, 25)
@@ -367,12 +416,12 @@ local function createGUI()
     checkBox.TextSize = 14
     checkBox.AutoButtonColor = true
     checkBox.Parent = frame
-
-    -- Индикатор активности (галочка статуса)
+    
+    -- Индикатор активности (зелёная галочка)
     local statusCheck = Instance.new("TextButton")
     statusCheck.Name = "StatusCheck"
     statusCheck.Size = UDim2.new(0, 25, 0, 25)
-    statusCheck.Position = UDim2.new(0.73, 0, 0.35, 2) -- сдвинута, чтобы не мешать кнопке
+    statusCheck.Position = UDim2.new(0.73, 0, 0.35, 2)
     statusCheck.BackgroundTransparency = 1
     statusCheck.Text = "✓"
     statusCheck.TextColor3 = Color3.fromRGB(0, 255, 0)
@@ -381,7 +430,7 @@ local function createGUI()
     statusCheck.Visible = false
     statusCheck.AutoButtonColor = false
     statusCheck.Parent = frame
-
+    
     local spoofAllState = currentSpoofAll
     local function updateCheckBox()
         if spoofAllState then
@@ -393,7 +442,7 @@ local function createGUI()
         end
     end
     updateCheckBox()
-
+    
     -- Клик по галочке → остановка
     statusCheck.MouseButton1Click:Connect(function()
         if isRunning then
@@ -401,7 +450,7 @@ local function createGUI()
             statusCheck.Visible = false
         end
     end)
-
+    
     -- Применить
     applyBtn.MouseButton1Click:Connect(function()
         local newName = textBox.Text
@@ -415,13 +464,13 @@ local function createGUI()
         getgenv().username = newName
         currentTarget = newName
     end)
-
+    
     -- Переключение чекбокса
     checkBox.MouseButton1Click:Connect(function()
         spoofAllState = not spoofAllState
         updateCheckBox()
     end)
-
+    
     -- Автозапуск
     if currentTarget and currentTarget ~= "" then
         startSpoof(currentTarget, currentSpoofAll)
