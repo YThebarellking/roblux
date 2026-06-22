@@ -1,31 +1,54 @@
--- Бессмертие через клона (Delta Roblox)
+-- Бессмертие через клона (исправленная версия)
 local player = game.Players.LocalPlayer
 local RunService = game:GetService("RunService")
 
-local currentChar = nil      -- текущий активный персонаж
-local backupChar = nil       -- скрытый клон-дублёр
-local isBackupActive = false -- флаг, чтобы не переключаться дважды
+local currentChar = nil
+local backupChar = nil
+local isBackupActive = false
+local syncConnection = nil
 
--- Создаёт скрытую копию персонажа
-local function cloneCharacter(char)
-    local newClone = char:Clone()
-    newClone.Name = "Backup_" .. char.Name
-    newClone.Parent = workspace
+-- === ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ===
 
-    -- Делаем невидимым и неактивным
-    for _, part in ipairs(newClone:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.Transparency = 1
-            part.CanCollide = false
-        elseif part:IsA("Humanoid") then
-            part.HealthDisplayDistance = 0
-            part.PlatformStand = true
-        end
+-- Дожидается полной загрузки персонажа (HRP + Humanoid)
+local function waitForCharacterReady(char)
+    if not char then return nil end
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then
+        hrp = char:WaitForChild("HumanoidRootPart", 5)
     end
-    return newClone
+    local humanoid = char:FindFirstChild("Humanoid")
+    if not humanoid then
+        humanoid = char:WaitForChild("Humanoid", 5)
+    end
+    return hrp, humanoid
 end
 
--- Синхронизирует инструменты (переносит новые, удаляет лишние)
+-- Создаёт скрытого клона (полностью готового)
+local function createHiddenClone(char)
+    local clone = char:Clone()
+    clone.Name = "Backup_" .. char.Name
+    clone.Parent = workspace
+
+    -- Ждём HRP и задаём PrimaryPart (чтобы PivotTo работал)
+    local cloneHRP = clone:WaitForChild("HumanoidRootPart", 5)
+    if cloneHRP then
+        clone.PrimaryPart = cloneHRP
+    end
+
+    -- Делаем невидимым, несоприкасаемым, отключаем HUD здоровья
+    for _, obj in ipairs(clone:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            obj.Transparency = 1
+            obj.CanCollide = false
+        elseif obj:IsA("Humanoid") then
+            obj.HealthDisplayDistance = 0
+            obj.PlatformStand = true
+        end
+    end
+    return clone
+end
+
+-- Синхронизация инструментов (добавляем новые, удаляем лишние)
 local function syncTools(source, target)
     local sourceTools = {}
     for _, child in ipairs(source:GetChildren()) do
@@ -41,12 +64,14 @@ local function syncTools(source, target)
         end
     end
 
+    -- Удаляем лишние у клона
     for name, tool in pairs(targetTools) do
         if not sourceTools[name] then
             tool:Destroy()
         end
     end
 
+    -- Копируем недостающие
     for name, tool in pairs(sourceTools) do
         if not targetTools[name] then
             local newTool = tool:Clone()
@@ -55,92 +80,129 @@ local function syncTools(source, target)
     end
 end
 
--- Основная синхронизация (здоровье, позиция, инвентарь)
-local function syncBackup()
+-- === ОСНОВНАЯ ЛОГИКА ===
+
+-- Переключение на клона
+local function switchToBackup()
+    if isBackupActive or not backupChar or not currentChar then return end
+    isBackupActive = true
+
+    -- 1. Переносим позицию через HumanoidRootPart (без PrimaryPart)
+    local hrp = currentChar:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        backupChar:PivotTo(hrp.CFrame)   -- PivotTo использует PrimaryPart, который мы задали
+    end
+
+    -- 2. Делаем клона видимым и активным
+    for _, obj in ipairs(backupChar:GetDescendants()) do
+        if obj:IsA("BasePart") then
+            obj.Transparency = 0
+            obj.CanCollide = true
+        elseif obj:IsA("Humanoid") then
+            obj.PlatformStand = false
+            obj.HealthDisplayDistance = 100
+        end
+    end
+
+    -- 3. Переносим все инструменты
+    syncTools(currentChar, backupChar)
+
+    -- 4. Назначаем клона как нового персонажа (Roblox переключит камеру и всё остальное)
+    player.Character = backupChar
+
+    -- 5. Удаляем мёртвого персонажа с задержкой (чтобы не нарушить события)
+    task.delay(0.2, function()
+        if currentChar and currentChar.Parent then
+            currentChar:Destroy()
+        end
+    end)
+
+    print("[Бессмертие] Переключено на клона!")
+
+    -- Сбрасываем флаг через небольшой таймаут (чтобы не сработало повторно)
+    task.delay(0.5, function()
+        isBackupActive = false
+    end)
+end
+
+-- Цикл синхронизации (выполняется каждый кадр)
+local function syncLoop()
     if not currentChar or not backupChar or isBackupActive then return end
 
     local humanoid = currentChar:FindFirstChild("Humanoid")
     local backupHumanoid = backupChar:FindFirstChild("Humanoid")
 
+    -- Проверяем здоровье
     if humanoid and backupHumanoid then
         backupHumanoid.Health = humanoid.Health
 
-        -- Если здоровье <= 0 – переключаемся
+        -- Если здоровье <= 0 – немедленно переключаемся
         if humanoid.Health <= 0 then
             switchToBackup()
+            return
         end
     end
 
-    -- Синхронизация позиции
-    local primary = currentChar:GetPrimaryPartCFrame()
-    if primary then
-        backupChar:SetPrimaryPartCFrame(primary)
+    -- Синхронизация позиции через HumanoidRootPart
+    local hrp = currentChar:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        backupChar:PivotTo(hrp.CFrame)
     end
 
+    -- Синхронизация инструментов
     syncTools(currentChar, backupChar)
 end
 
--- Переключение на клона
-local function switchToBackup()
-    if isBackupActive or not backupChar then return end
-    isBackupActive = true
+-- === ОБРАБОТЧИК НОВОГО ПЕРСОНАЖА ===
 
-    -- Ставим клона на место оригинала
-    local primary = currentChar:GetPrimaryPartCFrame()
-    if primary then
-        backupChar:SetPrimaryPartCFrame(primary)
-    end
-
-    -- Делаем клона видимым и активным
-    for _, part in ipairs(backupChar:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.Transparency = 0
-            part.CanCollide = true
-        elseif part:IsA("Humanoid") then
-            part.PlatformStand = false
-            part.HealthDisplayDistance = 100
-        end
-    end
-
-    -- Переносим все инструменты
-    syncTools(currentChar, backupChar)
-
-    -- Удаляем мёртвого персонажа
-    currentChar:Destroy()
-
-    -- Назначаем клона как нового персонажа игрока
-    player.Character = backupChar
-
-    print("[Бессмертие] Переключено на клона!")
-    -- isBackupActive сбросится в onCharacterAdded
-end
-
--- Срабатывает при появлении нового персонажа (включая клона после переключения)
 local function onCharacterAdded(newChar)
+    -- Отключаем старую синхронизацию
+    if syncConnection then
+        syncConnection:Disconnect()
+        syncConnection = nil
+    end
+
+    -- Ждём полной загрузки HRP и Humanoid
+    local hrp, humanoid = waitForCharacterReady(newChar)
+    if not hrp or not humanoid then
+        warn("[Бессмертие] Персонаж не загрузился должным образом")
+        return
+    end
+
     currentChar = newChar
     isBackupActive = false
 
-    if backupChar then backupChar:Destroy() end
-    backupChar = cloneCharacter(newChar)
+    -- Удаляем старого клона, если есть
+    if backupChar then
+        backupChar:Destroy()
+        backupChar = nil
+    end
 
-    -- Подписываемся на смерть, чтобы переключиться даже при быстром удалении
-    local humanoid = currentChar:WaitForChild("Humanoid")
+    -- Создаём нового клона (уже после полной загрузки)
+    backupChar = createHiddenClone(newChar)
+
+    -- Синхронизируем начальное состояние (позиция, здоровье, инструменты)
+    syncLoop()
+
+    -- Подписываемся на Died как дополнительную страховку
     humanoid.Died:Connect(function()
-        if not isBackupActive and backupChar then
+        if not isBackupActive and backupChar and currentChar then
             switchToBackup()
         end
     end)
+
+    -- Запускаем постоянную синхронизацию
+    syncConnection = RunService.Heartbeat:Connect(syncLoop)
 end
 
--- Запускаем постоянный цикл синхронизации
-RunService.Heartbeat:Connect(function()
-    syncBackup()
-end)
+-- === ИНИЦИАЛИЗАЦИЯ ===
 
 -- Если персонаж уже существует – обрабатываем
 if player.Character then
     onCharacterAdded(player.Character)
 end
 
--- Следим за появлением новых персонажей (респавн, или после нашего переключения)
+-- Следим за появлением новых персонажей (включая респавн)
 player.CharacterAdded:Connect(onCharacterAdded)
+
+print("[Бессмертие] Скрипт загружен, ожидаем персонажа...")
