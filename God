@@ -1,10 +1,3 @@
---[[
-    БЕССМЕРТИЕ v10.0 (максимально надёжное для клиента)
-    - Учтены все замечания: HealthChanged, удаление частей, утечки, обновление клона
-    - Работает через замену конечностей, а не всего персонажа
-    - Минимальная нагрузка, правильное управление подключениями
---]]
-
 local player = game.Players.LocalPlayer
 local workspace = game:GetService("Workspace")
 local camera = workspace.CurrentCamera
@@ -291,7 +284,7 @@ local function start()
         end
     end)
 
-    print("✅ Бессмертие v10.0 активировано (Delta Executor)")
+    print("✅ Бессмертие активировано (Delta Executor)")
 end
 
 -- === ЗАПУСК ===
