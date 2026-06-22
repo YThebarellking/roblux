@@ -1,0 +1,185 @@
+-- ============================================================
+-- БЕССМЕРТИЕ ЧЕРЕЗ ПЕРЕНОС СОСТОЯНИЯ (Вариант 2)
+-- ============================================================
+
+local player = game.Players.LocalPlayer
+local replicatedStorage = game:GetService("ReplicatedStorage")
+local workspace = game:GetService("Workspace")
+local camera = workspace.CurrentCamera
+
+-- Контейнер для резервного клона (хранилище состояния)
+local backupContainer = replicatedStorage:FindFirstChild("__BACKUPS__")
+if not backupContainer then
+    backupContainer = Instance.new("Folder")
+    backupContainer.Name = "__BACKUPS__"
+    backupContainer.Parent = replicatedStorage
+end
+
+local clone = nil          -- резервный клон (хранит последнее состояние)
+local isRespawning = false -- флаг, чтобы не запускать повторно
+local connections = {}     -- все подписки для очистки
+
+-- Очистка соединений
+local function clearConnections()
+    for _, conn in ipairs(connections) do
+        pcall(conn.Disconnect, conn)
+    end
+    table.clear(connections)
+end
+
+-- ============================================================
+-- 1. СОЗДАНИЕ РЕЗЕРВНОГО КЛОНА (сохраняем состояние)
+-- ============================================================
+local function createBackup()
+    local character = player.Character
+    if not character then return end
+
+    -- Удаляем старый клон
+    if clone then
+        pcall(clone.Destroy, clone)
+        clone = nil
+    end
+
+    character.Archivable = true
+    local newClone = character:Clone()
+    character.Archivable = false
+
+    local humanoid = newClone:FindFirstChildOfClass("Humanoid")
+    if not humanoid then
+        newClone:Destroy()
+        warn("Резервный клон не содержит Humanoid")
+        return
+    end
+
+    -- Настраиваем клон как хранилище (не активен)
+    newClone.Parent = backupContainer
+    newClone.Archivable = false
+    humanoid.Health = humanoid.MaxHealth
+    humanoid.BreakJointsOnDeath = false
+    humanoid:SetStateEnabled(Enum.HumanoidStateType.Dead, false)
+
+    clone = newClone
+end
+
+-- ============================================================
+-- 2. ПЕРЕНОС СОСТОЯНИЯ С КЛОНА НА НОВОГО ПЕРСОНАЖА
+-- ============================================================
+local function applyStateToNewCharacter(newChar)
+    if not clone or not newChar then return end
+
+    local newHumanoid = newChar:FindFirstChildOfClass("Humanoid")
+    local cloneHumanoid = clone:FindFirstChildOfClass("Humanoid")
+    if not newHumanoid or not cloneHumanoid then return end
+
+    -- 1. Позиция (берём из клона)
+    if clone.PrimaryPart and newChar.PrimaryPart then
+        newChar:PivotTo(clone:GetPivot())
+    end
+
+    -- 2. Здоровье и максимальное здоровье
+    newHumanoid.Health = cloneHumanoid.Health
+    newHumanoid.MaxHealth = cloneHumanoid.MaxHealth
+
+    -- 3. Внешность (через HumanoidDescription – работает для R15/R6)
+    pcall(function()
+        local desc = cloneHumanoid:GetDescription()
+        newHumanoid:ApplyDescription(desc)
+    end)
+
+    -- 4. Атрибуты (если используются)
+    for name, value in pairs(clone:GetAttributes()) do
+        newChar:SetAttribute(name, value)
+    end
+
+    -- 5. Инвентарь – переносим инструменты (и аксессуары, если нужно)
+    for _, child in ipairs(clone:GetChildren()) do
+        if child:IsA("Tool") then
+            local newTool = child:Clone()
+            newTool.Parent = newChar
+        elseif child:IsA("Accessory") then
+            -- Аксессуары лучше копировать через описания, но можно и так
+            local newAcc = child:Clone()
+            newAcc.Parent = newChar
+        end
+    end
+
+    -- 6. Дополнительно: копируем все части (кроме HumanoidRootPart и Humanoid)
+    -- чтобы сохранить внешний вид, если описание не сработало
+    for _, child in ipairs(clone:GetChildren()) do
+        if child:IsA("BasePart") and child.Name ~= "HumanoidRootPart" and not child:IsA("Accessory") then
+            local copy = child:Clone()
+            copy.Parent = newChar
+        end
+    end
+
+    -- Удаляем клон (он больше не нужен)
+    pcall(clone.Destroy, clone)
+    clone = nil
+    isRespawning = false
+
+    -- Обновляем камеру (чтобы она смотрела на нового персонажа)
+    task.wait(0.05)
+    camera.CameraSubject = newHumanoid
+end
+
+-- ============================================================
+-- 3. ОБРАБОТКА СМЕРТИ
+-- ============================================================
+local function onDeath()
+    if isRespawning then return end
+    isRespawning = true
+
+    -- Создаём клон в момент смерти (сохраняем состояние)
+    createBackup()
+
+    -- Ждём появления нового персонажа от сервера
+    local charAddedConn
+    charAddedConn = player.CharacterAdded:Connect(function(newChar)
+        charAddedConn:Disconnect() -- отключаем, чтобы не сработал дважды
+
+        -- Даём серверу время на инициализацию
+        task.wait(0.1)
+
+        -- Переносим состояние с клона на нового персонажа
+        applyStateToNewCharacter(newChar)
+
+        -- Подписываемся на смерть нового персонажа
+        local humanoid = newChar:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            local deathConn = humanoid.Died:Connect(onDeath)
+            table.insert(connections, deathConn)
+        end
+    end)
+    table.insert(connections, charAddedConn)
+end
+
+-- ============================================================
+-- 4. ИНИЦИАЛИЗАЦИЯ
+-- ============================================================
+local function init()
+    clearConnections()
+    isRespawning = false
+
+    if player.Character then
+        local humanoid = player.Character:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            local conn = humanoid.Died:Connect(onDeath)
+            table.insert(connections, conn)
+        end
+        createBackup() -- создаём начальный резерв
+    end
+
+    -- Следим за появлением персонажа (например, после респавна)
+    local addedConn = player.CharacterAdded:Connect(function(char)
+        createBackup()
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            local dc = hum.Died:Connect(onDeath)
+            table.insert(connections, dc)
+        end
+    end)
+    table.insert(connections, addedConn)
+end
+
+init()
+print("✅ Бессмертие (перенос состояния) активировано")
