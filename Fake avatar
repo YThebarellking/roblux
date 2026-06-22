@@ -1,7 +1,6 @@
 -- =====================================================
 -- Скрипт подмены внешности, имени и аватарок (с GUI)
--- Исправлено: при повторном применении все элементы обновляются
--- Добавлена галочка для индикации активной подмены
+-- Исправлено: кнопки работают, галочка кликабельна и видна
 -- =====================================================
 
 getgenv().username = getgenv().username or getgenv().Xiar_TargetUser or "Builderman"
@@ -20,9 +19,8 @@ local currentSpoofAll = SPOOF_ALL
 local spoofConnections = {}
 local isRunning = false
 
--- ========== Восстановление оригинальных значений ==========
+-- ========== Восстановление оригиналов ==========
 local function restoreOriginals()
-    -- Восстанавливаем тексты
     for _, obj in ipairs(game:GetDescendants()) do
         if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
             local orig = obj:GetAttribute("OriginalText")
@@ -39,7 +37,7 @@ local function restoreOriginals()
     end
 end
 
--- ========== Очистка подмены ==========
+-- ========== Остановка подмены ==========
 local function stopSpoof()
     restoreOriginals()
     for _, conn in ipairs(spoofConnections) do
@@ -55,7 +53,7 @@ local function stopSpoof()
     end
 end
 
--- ========== Вспомогательные функции ==========
+-- ========== Вспомогательные функции (без изменений) ==========
 local function getUserId(name)
     local s, id = pcall(function()
         return Players:GetUserIdFromNameAsync(name)
@@ -185,11 +183,10 @@ local function applyName(fakeName)
     end)
 end
 
--- ========== Подмена текста (с сохранением оригиналов) ==========
+-- ========== Подмена текста ==========
 local function startTextSpoof(fakeName)
     local function replace(obj)
         if not (obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox")) then return end
-        -- Сохраняем оригинальный текст, если ещё не сохранён
         if not obj:GetAttribute("OriginalText") then
             obj:SetAttribute("OriginalText", obj.Text)
         end
@@ -222,7 +219,7 @@ local function startTextSpoof(fakeName)
     table.insert(spoofConnections, game.DescendantAdded:Connect(hook))
 end
 
--- ========== Подмена аватарок (с сохранением оригиналов) ==========
+-- ========== Подмена аватарок ==========
 local function startHeadshotSpoof(userId)
     local fakeHeadshot = getHeadshot(userId)
     local realId = LP.UserId
@@ -248,9 +245,7 @@ end
 
 -- ========== Основная функция запуска ==========
 local function startSpoof(targetName, spoofAll)
-    -- Останавливаем текущую подмену (восстанавливаем оригиналы)
-    stopSpoof()
-
+    stopSpoof() -- очищаем и восстанавливаем оригиналы
     currentTarget = targetName
     currentSpoofAll = spoofAll
     getgenv().username = targetName
@@ -270,7 +265,6 @@ local function startSpoof(targetName, spoofAll)
     startTextSpoof(fakeName)
     startHeadshotSpoof(userId)
 
-    -- Обработка респавна
     local charAddedConn = LP.CharacterAdded:Connect(function()
         task.wait(0.01)
         if isRunning then
@@ -318,7 +312,7 @@ local function createGUI()
     title.Font = Enum.Font.GothamBold
     title.Parent = frame
 
-    -- Поле ввода + галочка
+    -- Поле ввода
     local textBox = Instance.new("TextBox")
     textBox.Size = UDim2.new(0.6, 0, 0, 30)
     textBox.Position = UDim2.new(0.05, 0, 0.35, 0)
@@ -331,17 +325,18 @@ local function createGUI()
     textBox.TextSize = 16
     textBox.Parent = frame
 
-    -- Галочка (индикатор активности)
-    local statusCheck = Instance.new("TextLabel")
+    -- Галочка (TextButton для кликабельности)
+    local statusCheck = Instance.new("TextButton")
     statusCheck.Name = "StatusCheck"
     statusCheck.Size = UDim2.new(0, 25, 0, 25)
     statusCheck.Position = UDim2.new(0.67, 0, 0.35, 2)
     statusCheck.BackgroundTransparency = 1
-    statusCheck.Text = "✓"  -- Символ галочки
+    statusCheck.Text = "✓"
     statusCheck.TextColor3 = Color3.fromRGB(0, 255, 0)
     statusCheck.TextSize = 24
     statusCheck.TextScaled = true
     statusCheck.Visible = false
+    statusCheck.AutoButtonColor = false
     statusCheck.Parent = frame
 
     -- Кнопка "Применить"
@@ -353,6 +348,7 @@ local function createGUI()
     applyBtn.Text = "Применить"
     applyBtn.Font = Enum.Font.GothamBold
     applyBtn.TextSize = 14
+    applyBtn.AutoButtonColor = true
     applyBtn.Parent = frame
 
     -- Чекбокс "Подменять всех"
@@ -364,6 +360,7 @@ local function createGUI()
     checkBox.Text = "Подменять всех: ВЫКЛ"
     checkBox.Font = Enum.Font.Gotham
     checkBox.TextSize = 14
+    checkBox.AutoButtonColor = true
     checkBox.Parent = frame
 
     local spoofAllState = currentSpoofAll
@@ -378,7 +375,7 @@ local function createGUI()
     end
     updateCheckBox()
 
-    -- Клик по галочке — остановить подмену
+    -- Обработчик клика по галочке (остановка подмены)
     statusCheck.MouseButton1Click:Connect(function()
         if isRunning then
             stopSpoof()
@@ -386,7 +383,7 @@ local function createGUI()
         end
     end)
 
-    -- Применить
+    -- Обработчик "Применить"
     applyBtn.MouseButton1Click:Connect(function()
         local newName = textBox.Text
         if newName == "" then
@@ -406,7 +403,7 @@ local function createGUI()
         updateCheckBox()
     end)
 
-    -- Если уже есть цель, запускаем подмену сразу
+    -- Автозапуск, если есть цель
     if currentTarget and currentTarget ~= "" then
         startSpoof(currentTarget, currentSpoofAll)
     end
