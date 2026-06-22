@@ -1,120 +1,93 @@
--- Серверный скрипт (Script) в ServerScriptService
+--[[
+    Delta Executor Script: Clone with auto‑switch on death
+    - Создаёт полную копию персонажа (позиция, аксессуары, эффекты и т.д.)
+    - Здоровье клона всегда остаётся 100 (не может умереть)
+    - При смерти оригинала управление и камера жёстко переключаются на клона
+    - Оригинальный персонаж удаляется, система считает клона игроком
+]]--
+
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local camera = workspace.CurrentCamera
 
-local function setupCloneFromCharacter(player, originalChar)
-	-- Не обрабатываем, если это уже клон
-	if originalChar:FindFirstChild("IsClone") then
-		return
-	end
+local cloneModel = nil
+local originalChar = nil
+local switched = false
 
-	-- 1. Клонируем персонажа со всем содержимым
-	local clone = originalChar:Clone()
-	clone.Name = player.Name
+-- Функция создания клона персонажа
+local function createClone(character)
+    local clone = character:Clone()
+    clone.Parent = workspace
+    clone.Name = player.Name .. "_Clone" -- можно убрать, чтобы имя совпадало
 
-	-- 2. Удаляем все скрипты, чтобы не было двойного выполнения
-	for _, descendant in ipairs(clone:GetDescendants()) do
-		if descendant:IsA("Script") or descendant:IsA("LocalScript") then
-			descendant:Destroy()
-		end
-	end
+    local humanoid = clone:WaitForChild("Humanoid", 5)
+    if not humanoid then
+        warn("Humanoid не найден в клоне")
+        return nil
+    end
 
-	-- 3. Метка, чтобы не обработать клона как нового персонажа
-	local isCloneTag = Instance.new("BoolValue")
-	isCloneTag.Name = "IsClone"
-	isCloneTag.Value = true
-	isCloneTag.Parent = clone
+    -- Применяем описание, чтобы загрузились аксессуары (шапки, одежда и т.д.)
+    humanoid:ApplyDescription(humanoid.HumanoidDescription)
+    wait(0.5) -- даём время на прогрузку аксессуаров
 
-	-- 4. Отображаемое здоровье (то, что видит игрок)
-	local displayHealth = Instance.new("IntValue")
-	displayHealth.Name = "DisplayHealth"
-	displayHealth.Value = 100
-	displayHealth.Parent = clone
+    -- Вечный цикл: здоровье клона всегда 100
+    task.spawn(function()
+        while humanoid and humanoid.Parent do
+            humanoid.Health = humanoid.MaxHealth
+            RunService.Heartbeat:Wait()
+        end
+    end)
 
-	-- 5. Настраиваем Humanoid клона: бесконечный запас здоровья,
-	-- чтобы Roblox не убивал персонажа при достижении 0.
-	local cloneHumanoid = clone:FindFirstChild("Humanoid")
-	if not cloneHumanoid then
-		clone:Destroy()
-		warn("[AlwaysClone] Humanoid не найден в клоне, отмена.")
-		return
-	end
-	cloneHumanoid.MaxHealth = 1e6
-	cloneHumanoid.Health = cloneHumanoid.MaxHealth
-
-	local lastHealth = cloneHumanoid.Health
-	local isResetting = false
-
-	cloneHumanoid.HealthChanged:Connect(function(newHealth)
-		if isResetting then
-			lastHealth = newHealth
-			return
-		end
-
-		if newHealth < lastHealth then
-			local damage = lastHealth - newHealth
-
-			-- Мгновенно восстанавливаем реальное здоровье
-			isResetting = true
-			cloneHumanoid.Health = cloneHumanoid.MaxHealth
-			isResetting = false
-
-			-- Уменьшаем видимое здоровье
-			displayHealth.Value = math.max(0, displayHealth.Value - damage)
-
-			-- Если видимое здоровье кончилось — восстанавливаем до 100
-			-- (эффект "второго дыхания" без смены персонажа)
-			if displayHealth.Value <= 0 then
-				displayHealth.Value = 100
-				-- Здесь можно вызвать RemoteEvent для клиента, чтобы проиграть эффект,
-				-- но сейчас просто сброс.
-			end
-		end
-
-		lastHealth = cloneHumanoid.Health
-	end)
-
-	-- 6. Позиционируем клона там же, где оригинал
-	local originalRoot = originalChar:FindFirstChild("HumanoidRootPart")
-	local cloneRoot = clone:FindFirstChild("HumanoidRootPart")
-	if originalRoot and cloneRoot then
-		clone:SetPrimaryPartCFrame(originalRoot.CFrame)
-	end
-
-	clone.Parent = workspace
-
-	-- 7. Передаём клону управление и камеру, делаем его текущим персонажем
-	local success = pcall(function()
-		player:SetCharacter(clone)
-	end)
-
-	if not success then
-		warn("[AlwaysClone] SetCharacter не удался, уничтожаем клона")
-		clone:Destroy()
-		return
-	end
-
-	-- 8. Удаляем оригинального персонажа (он больше не нужен)
-	task.wait(0.5)
-	if originalChar and originalChar.Parent then
-		originalChar:Destroy()
-	end
+    return clone
 end
 
-local function onPlayerAdded(player)
-	local charConn
-	charConn = player.CharacterAdded:Connect(function(character)
-		setupCloneFromCharacter(player, character)
-	end)
+-- Функция переключения управления на клона
+local function switchToClone()
+    if not cloneModel or not cloneModel.Parent then return end
 
-	-- Отключаем прослушку при выходе игрока
-	player.AncestryChanged:Connect(function()
-		charConn:Disconnect()
-	end)
+    -- Переопределяем персонажа игрока
+    pcall(function()
+        player.Character = cloneModel
+    end)
+
+    -- Жёстко фиксируем камеру на клоне
+    local cloneHumanoid = cloneModel:FindFirstChild("Humanoid")
+    if cloneHumanoid then
+        camera.CameraSubject = cloneHumanoid
+        camera.CameraType = Enum.CameraType.Custom
+    end
+
+    -- Удаляем оригинального персонажа, если он ещё жив
+    if originalChar and originalChar.Parent then
+        originalChar:Destroy()
+    end
+
+    switched = true
+    print("Переключились на клона. Оригинал удалён.")
 end
 
-Players.PlayerAdded:Connect(onPlayerAdded)
+-- Ожидаем появления персонажа и настраиваем всё
+player.CharacterAdded:Connect(function(char)
+    if switched then return end -- если уже переключились, новых персонажей игнорируем
 
--- Уже присутствующие игроки (на случай перезагрузки скрипта)
-for _, player in ipairs(Players:GetPlayers()) do
-	coroutine.wrap(onPlayerAdded)(player)
-end
+    originalChar = char
+    local humanoid = char:WaitForChild("Humanoid", 5)
+    if not humanoid then return end
+
+    -- Создаём клона сразу, пока персонаж жив
+    cloneModel = createClone(char)
+
+    -- Мониторим здоровье: при падении до 0 (или смерти) — переключаем
+    humanoid.HealthChanged:Connect(function(health)
+        if health <= 0 and not switched then
+            switchToClone()
+        end
+    end)
+
+    humanoid.Died:Connect(function()
+        if not switched then
+            switchToClone()
+        end
+    end)
+end)
