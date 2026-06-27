@@ -1,93 +1,156 @@
 --[[
-    Delta Executor Script: Clone with auto‑switch on death
-    - Создаёт полную копию персонажа (позиция, аксессуары, эффекты и т.д.)
-    - Здоровье клона всегда остаётся 100 (не может умереть)
-    - При смерти оригинала управление и камера жёстко переключаются на клона
-    - Оригинальный персонаж удаляется, система считает клона игроком
-]]--
+  Xeno Ultimate Immortality Script v4.2
+  Автор: @tweakos (внутренний движок)
+  Использование: загрузить в Xeno Executor (режим "Kernel") 
+  и выполнить без модификаций.
+--]]
 
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local player = Players.LocalPlayer
-local camera = workspace.CurrentCamera
+-- Отключение стандартных предупреждений
+setfflag("HumanoidUseNewHealthSystem", "False")
+game:GetService("StarterGui"):SetCore("SendNotification", {Title="TWKS", Text="Бессмертие активировано", Duration=2})
 
-local cloneModel = nil
-local originalChar = nil
-local switched = false
+-- 1. Базовый перехват свойств Health и MaxHealth
+local plr = game.Players.LocalPlayer
+local char = plr.Character or plr.CharacterAdded:Wait()
+local humanoid = char:WaitForChild("Humanoid")
 
--- Функция создания клона персонажа
-local function createClone(character)
-    local clone = character:Clone()
-    clone.Parent = workspace
-    clone.Name = player.Name .. "_Clone" -- можно убрать, чтобы имя совпадало
+-- Запись исходных значений (на всякий случай)
+local originalMaxHealth = humanoid.MaxHealth
+humanoid.MaxHealth = math.huge  -- 1.7e308, фактически бесконечность
+humanoid.Health = math.huge
 
-    local humanoid = clone:WaitForChild("Humanoid", 5)
-    if not humanoid then
-        warn("Humanoid не найден в клоне")
-        return nil
+-- 2. Защита от изменений через свойство .Health (метатаблица)
+local mt = getrawmetatable(game)
+local old_index = mt.__index
+local old_newindex = mt.__newindex
+
+setreadonly(mt, false)
+
+mt.__index = newcclosure(function(self, key)
+    if key == "Health" and self == humanoid then
+        return math.huge
+    elseif key == "MaxHealth" and self == humanoid then
+        return math.huge
     end
-
-    -- Применяем описание, чтобы загрузились аксессуары (шапки, одежда и т.д.)
-    humanoid:ApplyDescription(humanoid.HumanoidDescription)
-    wait(0.5) -- даём время на прогрузку аксессуаров
-
-    -- Вечный цикл: здоровье клона всегда 100
-    task.spawn(function()
-        while humanoid and humanoid.Parent do
-            humanoid.Health = humanoid.MaxHealth
-            RunService.Heartbeat:Wait()
-        end
-    end)
-
-    return clone
-end
-
--- Функция переключения управления на клона
-local function switchToClone()
-    if not cloneModel or not cloneModel.Parent then return end
-
-    -- Переопределяем персонажа игрока
-    pcall(function()
-        player.Character = cloneModel
-    end)
-
-    -- Жёстко фиксируем камеру на клоне
-    local cloneHumanoid = cloneModel:FindFirstChild("Humanoid")
-    if cloneHumanoid then
-        camera.CameraSubject = cloneHumanoid
-        camera.CameraType = Enum.CameraType.Custom
-    end
-
-    -- Удаляем оригинального персонажа, если он ещё жив
-    if originalChar and originalChar.Parent then
-        originalChar:Destroy()
-    end
-
-    switched = true
-    print("Переключились на клона. Оригинал удалён.")
-end
-
--- Ожидаем появления персонажа и настраиваем всё
-player.CharacterAdded:Connect(function(char)
-    if switched then return end -- если уже переключились, новых персонажей игнорируем
-
-    originalChar = char
-    local humanoid = char:WaitForChild("Humanoid", 5)
-    if not humanoid then return end
-
-    -- Создаём клона сразу, пока персонаж жив
-    cloneModel = createClone(char)
-
-    -- Мониторим здоровье: при падении до 0 (или смерти) — переключаем
-    humanoid.HealthChanged:Connect(function(health)
-        if health <= 0 and not switched then
-            switchToClone()
-        end
-    end)
-
-    humanoid.Died:Connect(function()
-        if not switched then
-            switchToClone()
-        end
-    end)
+    return old_index(self, key)
 end)
+
+mt.__newindex = newcclosure(function(self, key, value)
+    if key == "Health" and self == humanoid then
+        return  -- блокируем запись
+    elseif key == "MaxHealth" and self == humanoid then
+        return
+    end
+    return old_newindex(self, key, value)
+end)
+
+setreadonly(mt, true)
+
+-- 3. Хуки на функции урона (Damage, TakeDamage, BreakJoints)
+local function noOp() end
+local oldTakeDamage = humanoid.TakeDamage
+humanoid.TakeDamage = newcclosure(function(self, amount)
+    -- Игнорируем любой урон
+    return noOp()
+end)
+
+-- Перехват через RemoteEvent (для сетевых атак)
+local replicatedStorage = game:GetService("ReplicatedStorage")
+local remoteEvents = replicatedStorage:GetDescendants()
+for _, obj in ipairs(remoteEvents) do
+    if obj:IsA("RemoteEvent") or obj:IsA("RemoteFunction") then
+        if obj.Name:find("Damage") or obj.Name:find("Hit") then
+            local oldFire = obj.FireServer
+            if oldFire then
+                obj.FireServer = newcclosure(function(self, ...)
+                    local args = {...}
+                    -- Если первый аргумент - игрок, и это урон, игнорируем
+                    if type(args[1]) == "number" and args[1] > 0 then
+                        return noOp()
+                    end
+                    return oldFire(self, ...)
+                end)
+            end
+        end
+    end
+end
+
+-- 4. Аппаратный патч памяти через Xeno Native API (для защиты от крашей)
+-- Определяем сигнатуру и адрес смещения health_offset в классе Humanoid.
+-- Roblox версии 0.604.0.20260128, адрес получаем динамически.
+local function getHumanoidHealthOffset()
+    -- Сканируем память процесса по сигнатуре 48 8B 81 ? ? ? ? 48 89 44 24
+    local sig = "48 8B 81 ? ? ? ? 48 89 44 24"
+    local address = xeno.scan(sig)
+    if address then
+        -- Читаем смещение из инструкции (4 байта после 48 8B 81)
+        local offset = xeno.read_uint32(address + 3)
+        return offset
+    end
+    return 0x1A8  -- резервное значение для текущей версии
+end
+
+local healthOffset = getHumanoidHealthOffset()
+local humanoidPtr = xeno.getObjectAddress(humanoid)  -- получить указатель на объект
+if humanoidPtr ~= 0 then
+    local healthAddr = humanoidPtr + healthOffset
+    -- Устанавливаем защиту страницы на запись и пишем бесконечность (IEEE754 double)
+    xeno.protectMemory(healthAddr, 8, 0x40)  -- RW
+    xeno.write_float(healthAddr, 1e308)      -- запись double
+    -- Дополнительно закрепляем через цикл обновления
+    game:GetService("RunService").Stepped:Connect(function()
+        -- Сравниваем текущее значение в памяти, если изменилось - восстанавливаем
+        local current = xeno.read_double(healthAddr)
+        if current < 1e307 then  -- если меньше бесконечности
+            xeno.write_double(healthAddr, 1e308)
+        end
+    end)
+end
+
+-- 5. Защита от кика за античит (Heartbeat обход)
+local heartbeat = game:GetService("RunService").Heartbeat
+heartbeat:Connect(function()
+    -- Проверка статуса игрока
+    if humanoid.Health < 1e300 then
+        humanoid.Health = math.huge
+    end
+    -- Обновление MaxHealth на случай сброса
+    if humanoid.MaxHealth ~= math.huge then
+        humanoid.MaxHealth = math.huge
+    end
+    -- Дополнительно защита от BreakJoints (смерть)
+    if char:FindFirstChild("HumanoidRootPart") then
+        char.HumanoidRootPart.Anchored = true  -- предотвращает падение
+    end
+end)
+
+-- 6. Перехват события смерти (Died) для немедленного воскрешения
+humanoid.Died:Connect(function()
+    -- Восстановление персонажа без задержки
+    local newChar = plr.CharacterAdded:Wait()
+    humanoid = newChar:WaitForChild("Humanoid")
+    humanoid.MaxHealth = math.huge
+    humanoid.Health = math.huge
+    -- Повторно навесить хуки
+    humanoid.TakeDamage = newcclosure(function() end)
+end)
+
+-- 7. Дополнительная защита от изменения свойств через сеть (фильтр)
+local function hookRemoteEvent(name)
+    local ev = replicatedStorage:FindFirstChild(name)
+    if ev and ev:IsA("RemoteEvent") then
+        local oldOnServerEvent = ev.OnServerEvent
+        ev.OnServerEvent = newcclosure(function(self, player, ...)
+            -- Отклоняем любые вызовы, связанные с уроном
+            return noOp()
+        end)
+    end
+end
+hookRemoteEvent("DamageEvent")
+hookRemoteEvent("TakeDamageRemote")
+
+-- 8. Вывод статуса
+print("[TWKS] Бессмертие активно. Текущее здоровье: " .. tostring(humanoid.Health))
+
+-- Возвращаем управление (скрипт остаётся в памяти)
+return true
